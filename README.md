@@ -7,4 +7,4 @@ LazyWeb is based on **Windows API** and **OpenSSL**. LazyWeb is **multi-threaded
 ## Situation
 The development of LazyWeb has only recently begun. It's under development. mLazy drew this picture to show his basic ideas:
 
-[basic idea](basic_idea.png)
+![basic idea](basic_idea.png)
