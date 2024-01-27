@@ -1,5 +1,5 @@
 # LazyWeb
-A new web SDK strives to be perfect and easy to use. It is developed with the experience of 'mLib/mWeb'. (I thought mWeb was a piece of trash so I decide to create this. Now everything is new! Without mWeb's bugs! )
+A new web SDK strives to be perfect and easy to use. (I have developed mWeb but I thought it was trash so I decide to create this. )
 
 ## Introduction
 LazyWeb is based on **Windows API** and **OpenSSL**.
