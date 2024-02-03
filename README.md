@@ -13,11 +13,30 @@ LazyWeb uses class `lazy::Msg` to manage http messages, and offers `lazy::WebHel
 ### Start as Client
 
 ```cpp
+//Includes the lib
 #include <lazyweb/lazyweb.hpp>
 using namespace lazy;
 int main()
 {
   //Instantiate lazy::web
+  Web web;
+  //Initialization
+  web.init();
+  //Connect to the server
+  web.connect("htpps://github.com/");
+  //Send a GET msg
+  std::string msg="GET / HTTP/1.1\r\nConnection: close\r\n\r\n";
+  web.write(msg);
+  //Wait a while and recv msg
+  Sleep(1000);
+  if(!web.msg_empty())
+  {
+    Msg msg = web.read();
+    //Print the msg
+    std::cout << msg.get_str() << std::endl;
+  }
+  //Close
+  web.close();
   return 0;
 }
 ```
