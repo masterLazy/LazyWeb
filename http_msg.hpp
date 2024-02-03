@@ -6,7 +6,7 @@
 
 namespace lazy
 {
-	//从资源名获取数据类型
+	//From resource name get type
 	std::string GetResType(std::string resourceName)
 	{
 		using namespace std;
@@ -45,6 +45,35 @@ namespace lazy
 
 	class Msg
 	{
+	private:
+		//Analysis the msg
+		bool analysis();
 
+	public:
+		//Filename
+		std::string file = "";
+
+		//Analysised data
+		
+		//First Line
+		std::string fline;
+		//Header
+		std::vector<std::pair<std::string, std::string>> header;
+		//Parameters (after url)
+		std::vector<std::pair<std::string, std::string>> par;
+		//Msg main body
+		std::string body;
+
+		Msg();
+		~Msg();
+		
+		//Load from file then analysis
+		bool load(std::string filename);
+
+		//Get the string of msg
+		std::string get_str();
+
+		//Delete the msg file
+		bool del_file();
 	};
 }
