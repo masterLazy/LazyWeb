@@ -36,7 +36,7 @@ int main()
   msg += "\r\n";
   web.write(msg);
 
-  //Wait  and recv msg
+  //Wait and recv msg
   while(web.msg_empty());
   Msg msg = web.read();
   //Print the msg
