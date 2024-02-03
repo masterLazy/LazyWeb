@@ -36,9 +36,6 @@
 *****************************************************************************/
 namespace lazy
 {
-	//Time string
-	std::string Get_time_string();
-
 	const int HTTP_PORT = 80;
 	const int HTTPS_PORT = 443;
 
@@ -75,6 +72,9 @@ namespace lazy
 		//For SERVER: Bound addr
 		sockaddr_in addr;
 
+		//For CLIENT: Server host name
+		std::string host;
+
 		enum class Mode
 		{
 			undefined, client, server
@@ -110,6 +110,8 @@ namespace lazy
 		bool connect(std::string host, int port, float waitSec = 3.0);
 		//For CLIENT: connect to the server
 		bool connect(std::string url, float waitSec = 3.0);
+		//For CLIENT: get the server host's name
+		std::string get_hostname();
 
 		//For SERVER: start to listen connection
 		bool listen();
@@ -143,6 +145,16 @@ namespace lazy
 		WebHelper();
 		WebHelper(Web*);
 		~WebHelper();
+
+		//String helper
+
+		//Get time string
+		//Example: 2013-01-08_08-53-29_0001
+		static std::string get_time_str();
+
+		//Get date string
+		//Example: Tue, 08 Jan 2013 08:53:29 GMT
+		static std::string get_date_str();
 
 		//URL helper
 

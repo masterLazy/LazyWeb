@@ -4,51 +4,6 @@
 * The realization of lazy::web
 *****************************************************************************/
 
-std::string lazy::Get_time_string()
-{
-	time_t t = time(NULL);
-	srand(t);
-
-	//Avoid repeating
-	static time_t last_t = t;
-	static int count = 0;
-	if (last_t == t)
-	{
-		count++;
-	}
-	else
-	{
-		last_t = t;
-		count = 0;
-	}
-
-	tm lt;
-	localtime_s(&lt, &t);
-
-	using namespace std;
-	string y = to_string(lt.tm_year + 1900);
-
-	string m = to_string(lt.tm_mon + 1);
-	if (m.size() == 1)m.insert(m.begin(), '0');
-
-	string d = to_string(lt.tm_mday);
-	if (d.size() == 1)d.insert(d.begin(), '0');
-
-	string h = to_string(lt.tm_hour);
-	if (h.size() == 1)h.insert(h.begin(), '0');
-
-	string min = to_string(lt.tm_min);
-	if (min.size() == 1)min.insert(min.begin(), '0');
-
-	string s = to_string(lt.tm_sec);
-	if (s.size() == 1)s.insert(s.begin(), '0');
-
-	string cnt = to_string(count);
-	while (cnt.size() < 4)cnt.insert(cnt.begin(), '0');
-
-	return y + '-' + m + '-' + d + '_' + h + min + s + '_' + cnt;
-}
-
 
 //lazy::Web
 
@@ -101,7 +56,7 @@ void lazy::Web::recv_loop(Web& web)
 				if (recving == false)
 				{
 					recving = true;
-					filename = web.recv_path + Get_time_string() + ".dat";
+					filename = web.recv_path + WebHelper::get_time_str() + ".dat";
 					of.open(filename);
 					cout << "[recv_thread] Recv begin." << endl;
 				}
@@ -268,9 +223,10 @@ bool lazy::Web::set_recv_path(std::string path)
 	return true;
 }
 
-bool lazy::Web::connect(std::string host, int port, float waitSec)
+bool lazy::Web::connect(std::string _host, int port, float waitSec)
 {
 	using namespace std;
+	host = _host;
 
 	if (mode != Mode::client)
 	{
@@ -305,19 +261,19 @@ bool lazy::Web::connect(std::string host, int port, float waitSec)
 
 	//Config addr IP
 	bool hostName = false;
-	for (int i = 0; i < host.size(); i++)
+	for (int i = 0; i < _host.size(); i++)
 	{
-		if (host[i] >= 'A' && host[i] <= 'Z' ||
-			host[i] >= 'a' && host[i] <= 'z')
+		if (_host[i] >= 'A' && _host[i] <= 'Z' ||
+			_host[i] >= 'a' && _host[i] <= 'z')
 		{
 			hostName = true;
 			break;
 		}
 	}
-	//Given "host" is host name
+	//Given "_host" is _host name
 	if (hostName)
 	{
-		if (gethostbyname(host.c_str()) == nullptr)
+		if (gethostbyname(_host.c_str()) == nullptr)
 		{
 #ifdef _DEBUG
 			cout << "Failed to connect: Host not found." << endl;
@@ -326,13 +282,13 @@ bool lazy::Web::connect(std::string host, int port, float waitSec)
 		}
 		else
 		{
-			memcpy(&addr.sin_addr, gethostbyname(host.c_str())->h_addr, 4);
+			memcpy(&addr.sin_addr, gethostbyname(_host.c_str())->h_addr, 4);
 		}
 	}
 	//is IP
 	else
 	{
-		inet_pton(AF_INET, host.c_str(), &addr.sin_addr);
+		inet_pton(AF_INET, _host.c_str(), &addr.sin_addr);
 	}
 
 	int res, err = 0;
@@ -396,6 +352,10 @@ bool lazy::Web::connect(std::string host, int port, float waitSec)
 bool lazy::Web::connect(std::string url, float waitSec)
 {
 	return connect(WebHelper::get_url_host(url), WebHelper::get_url_port(url), waitSec);
+}
+std::string lazy::Web::get_host()
+{
+	return host;
 }
 
 bool lazy::Web::write(std::string msg)
@@ -537,6 +497,47 @@ void lazy::Web::close()
 lazy::WebHelper::WebHelper() {}
 lazy::WebHelper::~WebHelper() {}
 
+std::string lazy::WebHelper::get_time_str()
+{
+	time_t t;
+	time(&t);
+	srand(t);
+
+	//Avoid repeating
+	static time_t last_t = t;
+	static int count = 0;
+	if (last_t == t)
+	{
+		count++;
+	}
+	else
+	{
+		last_t = t;
+		count = 0;
+	}
+	std::string cnt = std::to_string(count);
+	while (cnt.size() < 4)cnt.insert(cnt.begin(), '0');
+
+	tm lt;
+	localtime_s(&lt, &t);
+
+	char str[64];
+	strftime(str, 64 * sizeof(char), "%Y-%m-%d_%H-%M-%S", &lt);
+	return std::string(str) + '_' + cnt;
+}
+std::string lazy::WebHelper::get_date_str()
+{
+	time_t t;
+	time(&t);
+	tm gmt;
+	gmtime_s(&gmt, &t);
+
+	char str[64];
+	strftime(str, 64 * sizeof(char), "%a, %d %b %Y %H:%M:%S GMT", &gmt);
+
+	return str;
+}
+
 lazy::WebHelper::WebHelper(lazy::Web* _web)
 {
 	web = _web;
@@ -606,7 +607,7 @@ bool lazy::WebHelper::send_get_msg(std::string resourceName)
 	if (web == 0)
 	{
 #ifdef _DEBUG
-		std::cout << "WebHelper error: Not initialized." << endl;
+		std::cout << "WebHelper error: Not initialized." << std::endl;
 #endif
 		return false;
 	}
