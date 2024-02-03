@@ -25,7 +25,7 @@ int main()
   //Initialization
   web.init();
   //Connect to the server
-  web.connect("htpps://github.com/");
+  web.connect("https://github.com/");
   //Send a GET msg
   string msg="GET / HTTP/1.1\r\nConnection: close\r\n\r\n";
   web.write(msg);
