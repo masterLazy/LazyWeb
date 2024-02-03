@@ -25,18 +25,23 @@ int main()
   //Initialization
   web.init();
   //Connect to the server
-  web.connect("https://github.com/");
+  web.connect("https://www.microsoft.com/");
+
   //Send a GET msg
-  string msg="GET / HTTP/1.1\r\nConnection: close\r\n\r\n";
+  string msg;
+  msg += "GET /en-us HTTP/1.1\r\n";
+  msg += "Connection: Keep-Alive\r\n";
+  msg += "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0\r\n";
+  msg += "Host: www.microsoft.com\r\n";
+  msg += "\r\n";
   web.write(msg);
-  //Wait a while and recv msg
-  Sleep(1000);
-  if(!web.msg_empty())
-  {
-    Msg msg = web.read();
-    //Print the msg
-    cout << msg.get_str() << endl;
-  }
+
+  //Wait  and recv msg
+  while(web.msg_empty());
+  Msg msg = web.read();
+  //Print the msg
+  cout << msg.get_str() << endl;
+
   //Close
   web.close();
   return 0;
