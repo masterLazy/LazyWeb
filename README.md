@@ -5,6 +5,6 @@ A new **HTTP** SDK strives to be perfect and easy to use. (I have developed mWeb
 LazyWeb is based on **Windows API** and **OpenSSL**. LazyWeb is **multi-threaded**.
 
 ## Situation
-The development of LazyWeb has only recently begun. It's under development. mLazy drew this picture to show his basic ideas:
+The development of LazyWeb is nearly half-done. It's under development. mLazy drew this picture to show his basic ideas:
 
 ![basic idea](basic_idea.png)
