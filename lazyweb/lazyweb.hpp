@@ -43,7 +43,7 @@ namespace lazy
 	const int WEB_IO_BUFSIZE = 16 * 1024;
 
 	//Recv overtime time
-	const int WEB_RECV_OVERTIME = 500;
+	const int WEB_RECV_OVERTIME = 1000;
 
 	class Web
 	{
@@ -135,44 +135,8 @@ namespace lazy
 		//Read a msg for read queue
 		Msg read();
 	};
-
-
-	class WebHelper
-	{
-	private:
-		Web* web = nullptr;
-	public:
-		WebHelper();
-		WebHelper(Web*);
-		~WebHelper();
-
-		//String helper
-
-		//Get time string
-		//Example: 2013-01-08_08-53-29_0001
-		static std::string get_time_str();
-
-		//Get date string
-		//Example: Tue, 08 Jan 2013 08:53:29 GMT
-		static std::string get_date_str();
-
-		//URL helper
-
-		//Get host name from URL
-		static std::string get_url_host(std::string url);
-		//Get resource name from URL
-		static std::string get_url_res(std::string url);
-		//Get port from URL
-		static int get_url_port(std::string url);
-
-		//CLIENT helper
-
-		bool download(Msg*);
-		bool send_get_msg(std::string resourceName);
-
-
-		//SERVER helper
-
-	};
 }
+
+#include "webHelper.hpp"
+
 #include "main.hpp"

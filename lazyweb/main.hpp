@@ -56,11 +56,19 @@ void lazy::Web::recv_loop(Web& web)
 				if (recving == false)
 				{
 					recving = true;
-					filename = web.recv_path + WebHelper::get_time_str() + ".dat";
-					of.open(filename);
+					string path = web.recv_path + WebHelper::get_time_str();
+					CreateDirectoryA(path.c_str(), NULL);
+					filename = path + "/msg" + ".dat";
+
+					if (of.is_open())of.close();
+					of.open(filename, ios::binary);
 					cout << "[recv_thread] Recv begin." << endl;
 				}
-				of << buf;
+				string temp(buf);
+				for (int i = 0; i < res; i++)
+				{
+					of << buf[i];
+				}
 				timer = clock();
 			}
 			//Recv complete
@@ -70,7 +78,7 @@ void lazy::Web::recv_loop(Web& web)
 				of.close();
 
 				Msg msg;
-				msg.load(filename);
+				msg.load_from_file(filename);
 				web.msg_queue.push(msg);
 				cout << "[recv_thread] Recv completed." << endl;
 			}
@@ -353,7 +361,7 @@ bool lazy::Web::connect(std::string url, float waitSec)
 {
 	return connect(WebHelper::get_url_host(url), WebHelper::get_url_port(url), waitSec);
 }
-std::string lazy::Web::get_host()
+std::string lazy::Web::get_hostname()
 {
 	return host;
 }
@@ -491,11 +499,196 @@ void lazy::Web::close()
 }
 
 
+//lazy::Msg
+
+
+lazy::Msg::Msg() {}
+lazy::Msg::~Msg() {}
+
+bool lazy::Msg::analysis()
+{
+	using namespace std;
+	string msg = get_str();
+
+	//Analysis msg header
+
+	//First line
+	if (msg.find("\r\n") == string::npos)
+	{
+#ifdef _DEBUG
+		cout << "Failed to analysis msg: Invalid format." << endl;
+#endif
+		return false;
+	}
+	fline = msg.substr(0, msg.find("\r\n"));
+
+	string suf = "";
+	//Header
+	size_t i = msg.find("\r\n") + 2;
+	header.clear();
+	while (true)
+	{
+		//Analysis one line
+		header.push_back({
+			msg.substr(i, msg.find(": ", i) - i),
+			msg.substr(msg.find(": ", i) + 2,
+			(msg.find("; ", i) == string::npos ? msg.find("\r\n",i) : min(msg.find("\r\n",i),msg.find("; ",i)))
+			- (msg.find(": ", i) + 2))
+			});
+		if (header.back().first == "Content-Type")suf = WebHelper::get_file_suf(header.back().second);
+
+		if (msg.find("\r\n\r\n") == msg.find("\r\n", i))break;
+		i = msg.find("\r\n", i) + 2;
+	}
+
+	//Parameters
+	string pars;
+	if (fline.find("GET") != string::npos)
+	{
+		if (fline.find("?") != string::npos)
+		{
+			pars = fline.substr(fline.find("?") + 1, fline.find(" HTTP") - fline.find("?") - 1);
+		}
+	}
+	if (!pars.empty())
+	{
+		i = 0;
+		while (pars.find("&", i) != string::npos)
+		{
+			par.push_back({
+				pars.substr(i, pars.find("=", i) - i),
+				WebHelper::uri_decode(pars.substr(pars.find("=", i) + 1, pars.find("&", i) - pars.find("=", i) - 1)),
+				});
+			i = pars.find("&", i) + 1;
+		}
+		par.push_back({
+				pars.substr(i, pars.find("=", i) - i),
+				WebHelper::uri_decode(pars.substr(pars.find("=", i) + 1)),
+			});
+	}
+
+
+	//Analysis msg body
+	char* msg_c;
+	size_t size;
+	get_str(&msg_c, &size);
+
+	//Save body to file
+	string fname = filename.substr(0, filename.find_last_of('/') + 1);
+	fname += "body";
+	fname += suf;
+	ofstream of;
+	of.open(fname, ios::binary);
+	if (!of.is_open())
+	{
+#ifdef _DEBUG
+		cout << "Failed to save msg body: Failed to open file." << endl;
+#endif
+		return false;
+	}
+
+	//Split body
+	i = msg.find("\r\n\r\n") + 4;
+	for (size_t j = i; j < size; j++)
+	{
+		of << msg_c[j];
+	}
+
+	of.close();
+	delete msg_c;
+	return true;
+}
+bool lazy::Msg::load_from_file(std::string _filename)
+{
+	using namespace std;
+
+	ifstream f;
+	f.open(_filename);
+	if (!f.is_open())
+	{
+#ifdef _DEBUG
+		cout << "Failed to load msg: cannot open file." << endl;
+#endif
+		return false;
+	}
+	f.close();
+
+	filename = _filename;
+
+	return analysis();
+}
+
+std::string lazy::Msg::get_str()
+{
+	using namespace std;
+
+	ifstream f;
+	f.open(filename, ios::binary);
+	if (!f.is_open())
+	{
+#ifdef _DEBUG
+		cout << "Failed to get msg string: cannot open file." << endl;
+#endif
+		return "";
+	}
+
+	string res;
+	char* buf = new char[WEB_IO_BUFSIZE + 1];
+	memset(buf, 0, WEB_IO_BUFSIZE + 1);
+	while (!f.eof())
+	{
+		f.read(buf, WEB_IO_BUFSIZE);
+		res += buf;
+	}
+	delete buf;
+	f.close();
+	return res;
+}
+bool lazy::Msg::get_str(char** str, size_t* pSize)
+{
+	using namespace std;
+
+	ifstream f(filename, ios::binary);
+	if (!f.is_open())
+	{
+#ifdef _DEBUG
+		cout << "Failed to get msg string: cannot open file." << endl;
+#endif
+		return false;
+	}
+
+	//Get file size
+	f.seekg(0, ios::end);
+	size_t size = f.tellg();
+	*pSize = size;
+	f.seekg(0, ios::beg);
+
+	char* buf = new char[size + 1];
+	memset(buf, 0, size + 1);
+	f.read(buf, size);
+	f.close();
+
+	*str = buf;
+
+	return true;
+}
+
+bool lazy::Msg::del_file()
+{
+	return DeleteFileA(filename.c_str());
+}
+
+
 //lazy::WebHelper
 
 
 lazy::WebHelper::WebHelper() {}
 lazy::WebHelper::~WebHelper() {}
+
+lazy::WebHelper::WebHelper(lazy::Web& _web)
+{
+	web = &_web;
+}
 
 std::string lazy::WebHelper::get_time_str()
 {
@@ -522,7 +715,7 @@ std::string lazy::WebHelper::get_time_str()
 	localtime_s(&lt, &t);
 
 	char str[64];
-	strftime(str, 64 * sizeof(char), "%Y-%m-%d_%H-%M-%S", &lt);
+	strftime(str, 64 * sizeof(char), "%Y%m%d_%H-%M-%S", &lt);
 	return std::string(str) + '_' + cnt;
 }
 std::string lazy::WebHelper::get_date_str()
@@ -536,11 +729,6 @@ std::string lazy::WebHelper::get_date_str()
 	strftime(str, 64 * sizeof(char), "%a, %d %b %Y %H:%M:%S GMT", &gmt);
 
 	return str;
-}
-
-lazy::WebHelper::WebHelper(lazy::Web* _web)
-{
-	web = _web;
 }
 
 std::string lazy::WebHelper::get_url_host(std::string url)
@@ -602,70 +790,131 @@ int lazy::WebHelper::get_url_port(std::string url)
 	return -1;
 }
 
-bool lazy::WebHelper::send_get_msg(std::string resourceName)
+std::string lazy::WebHelper::get_file_type(std::string filename)
 {
-	if (web == 0)
+	using namespace std;
+	if (filename.find(".") == string::npos)
+	{
+		return "text/html";
+	}
+	else
+	{
+		string suf = filename.substr(filename.find("."));
+		//text
+		if (suf == ".html" || suf == ".htm")return "text/html";
+		else if (suf == ".txt")return "text/plain";
+		else if (suf == ".css")return "text/css";
+		else if (suf == ".js")return "text/javascript";
+		else if (suf == ".json")return "application/json";
+		//image
+		else if (suf == ".jpg" || suf == ".jpeg")return "image/jpeg";
+		else if (suf == ".png")return "image/png";
+		else if (suf == ".gif")return "image/gif";
+		else if (suf == ".ico")return "image/x-ico";
+		else if (suf == ".webp")return "image/webp";
+		//audio
+		else if (suf == ".mp3")return "audio/mp3";
+		else if (suf == ".wav")return "audio/wav";
+		//video
+		else if (suf == ".mp4")return "video/mpeg4";
+		else if (suf == ".avi")return "video/avi";
+		//zips
+		else if (suf == ".zip")return "application/x-zip-compressed";
+		else if (suf == ".rar")return "application/octet-stream";
+		else if (suf == ".7z")return "application/x-7z-compressed";
+		else return "application/octet-stream";
+	}
+}
+std::string lazy::WebHelper::get_file_suf(std::string filetype)
+{
+	using namespace std;
+	//text
+	if (filetype.find("text/html") != string::npos)return ".html";
+	else if (filetype == "text/plain")return ".txt";
+	else if (filetype == "text/css")return ".css";
+	else if (filetype == "text/javascript")return ".js";
+	else if (filetype == "application/json")return ".json";
+	//image
+	else if (filetype == "image/jpeg")return ".jpg";
+	else if (filetype == "image/png")return ".png";
+	else if (filetype == "image/gif")return ".gif";
+	else if (filetype == "image/x-ico")return ".ico";
+	else if (filetype == "image/webp")return ".webp";
+	//audio
+	else if (filetype == "audio/mp3")return ".mp3";
+	else if (filetype == "audio/wav")return ".wav";
+	//video
+	else if (filetype == "video/mpeg4")return ".mpeg4";
+	else if (filetype == "video/avi")return ".avi";
+	//zips
+	else if (filetype == "application/x-zip-compressed")return ".zip";
+	else if (filetype == "application/x-7z-compressed")return ".7z";
+	else return "";
+}
+
+std::string lazy::WebHelper::uri_encode(const std::string& _s)
+{
+	std::string s = _s;
+	char temp, cstr[3];
+	for (size_t i = 0; i < s.size(); i++)
+	{
+		if (!(s[i] >= 'A' && s[i] <= 'Z' ||
+			s[i] >= 'a' && s[i] <= 'z' ||
+			s[i] >= '0' && s[i] <= '9' ||
+			s[i] == '-' ||
+			s[i] == '_' ||
+			s[i] == '.' ||
+			s[i] == '~'))
+		{
+			temp = s[i];
+			memset(cstr, 0, sizeof(cstr));
+			_itoa_s(temp, cstr, 16);
+			if (temp < 16)
+			{
+				cstr[1] = cstr[0];
+				cstr[0] = '0';
+			}
+			_strupr_s(cstr);
+			s[i] = '%';
+			s.insert(i + 1, cstr, 2);
+			i += 2;
+		}
+	}
+	return s;
+}
+std::string lazy::WebHelper::uri_decode(const std::string& _s)
+{
+	std::string s = _s;
+	int where;
+	char temp;
+	while (s.find("%") != std::string::npos)
+	{
+		where = s.find("%");
+		temp = strtoul(s.substr(where + 1, 2).c_str(), NULL, 16);
+		s.erase(where + 1, 2);
+		s[where] = temp;
+	}
+	return s;
+}
+
+bool lazy::WebHelper::send_get_msg(std::string url)
+{
+	if (web == nullptr)
 	{
 #ifdef _DEBUG
 		std::cout << "WebHelper error: Not initialized." << std::endl;
 #endif
 		return false;
 	}
-}
+	std::string msg;
+	msg += "GET " + WebHelper::get_url_res(url) + " HTTP/1.1\r\n";
 
+	msg += "Connection: Keep-Alive\r\n";
+	msg += "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0\r\n";
+	msg += "Cache-Control: no-cache\r\n";
+	msg += "Date: " + WebHelper::get_date_str() + "\r\n";
+	msg += "Host: " + web->get_hostname() + "\r\n";
+	msg += "\r\n";
 
-//lazy::Msg
-
-
-lazy::Msg::Msg() {}
-lazy::Msg::~Msg() {}
-
-bool lazy::Msg::load(std::string filename)
-{
-	using namespace std;
-
-	ifstream f;
-	f.open(filename);
-	if (!f.is_open())
-	{
-#ifdef _DEBUG
-		cout << "Failed to load msg: cannot open file." << endl;
-#endif
-		return false;
-	}
-	f.close();
-
-	file = filename;
-
-	return analysis();
-}
-std::string lazy::Msg::get_str()
-{
-	using namespace std;
-
-	ifstream f;
-	f.open(file);
-	if (!f.is_open())
-	{
-#ifdef _DEBUG
-		cout << "Failed to get msg string: cannot open file." << endl;
-#endif
-		return "";
-	}
-
-	string res;
-	char* buf = new char[WEB_IO_BUFSIZE + 1];
-	memset(buf, 0, WEB_IO_BUFSIZE + 1);
-	while (!f.eof())
-	{
-		f.read(buf, WEB_IO_BUFSIZE);
-		res += buf;
-	}
-	delete buf;
-
-	return res;
-}
-bool lazy::Msg::analysis()
-{
-	return true;
+	web->write(msg);
 }
