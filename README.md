@@ -20,27 +20,27 @@ using namespace std;
 using namespace lazy;
 int main()
 {
-  string url="https://www.microsoft.com/en-us/"
+	string url="https://www.microsoft.com/en-us/"
 
-  //Instantiate lazy::web
-  Web web;
-  //Initializate
-  web.init();
-  //Connect to the server
-  web.connect(url);
+	//Instantiate lazy::web
+	Web web;
+	//Initializate
+	web.init();
+	//Connect to the server
+	web.connect(url);
 
-  //Send a GET msg
-  WebHelper(web).send_get_msg(url);
+	//Send a GET msg
+	WebHelper(web).send_get_msg(url);
 
-  //Wait and recv msg
-  while(web.msg_empty());
-  Msg msg = web.read();
-  //Print the msg
-  cout << msg.get_str() << endl;
+	//Wait and recv msg
+	while(web.msg_empty());
+	Msg msg = web.read();
+	//Print the msg
+	cout << msg.get_str() << endl;
 
-  //Close
-  web.close();
-  return 0;
+	//Close
+	web.close();
+	return 0;
 }
 ```
 
@@ -53,7 +53,7 @@ using namespace lazy;
 int main()
 {
 	Msg msg = WebHelper::auto_get("https://www.microsoft.com/en-us/");
-  cout << msg.get_str() << endl;
+	cout << msg.get_str() << endl;
 	return 0;
 }
 ```
