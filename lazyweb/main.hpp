@@ -389,19 +389,26 @@ bool lazy::Web::connect(std::string _host, int port, float waitSec)
 		{
 			res = SSL_connect(ssl);
 			if (res == 0)break;
+
+			err = SSL_get_error(ssl, res);
+			if (err != SSL_ERROR_WANT_READ && err != SSL_ERROR_WANT_WRITE)
 			{
-				err = SSL_get_error(ssl, res);
-				if (err != SSL_ERROR_WANT_READ && err != SSL_ERROR_WANT_WRITE)
-				{
-					break;
-				}
+				break;
 			}
 		}
 		if (clock() - timer > waitSec * 1000)
 		{
 #ifdef _DEBUG
-			cout << "Failed to connect: Failed to connect: SSL connection overtime. "
+			cout << "Failed to connect: SSL connection overtime. "
 				<< get_error_str() << "." << endl;
+#endif
+			return false;
+		}
+		else if (err != SSL_ERROR_NONE)
+		{
+#ifdef _DEBUG
+			cout << "Failed to connect. SSL_get_error returned "
+				<< err << "." << endl;
 #endif
 			return false;
 		}
@@ -424,6 +431,12 @@ bool lazy::Web::connect(std::string _host, int port, float waitSec)
 				}
 				X509_free(cert);
 			}
+			else
+			{
+#ifdef _DEBUG
+				cout << "Notice: Server dosen't provide certificate file." << endl;
+#endif
+			}
 		}
 	}
 
@@ -442,12 +455,25 @@ std::string lazy::Web::get_hostname()
 
 bool lazy::Web::write(std::string msg)
 {
+	using namespace std;
 	if (mode == Mode::undefined)
 	{
 #ifdef _DEBUG
-		std::cout << "Failed to write: Not initialized." << std::endl;
+		cout << "Failed to write: Not initialized." << endl;
 #endif
 		return false;
+	}
+
+	if (ssl != nullptr)
+	{
+		if (SSL_get_state(ssl) != TLS_ST_OK)
+		{
+#ifdef _DEBUG
+			cout << "Failed to write: SSL state error. The SSL state is \"" <<
+				SSL_state_string_long(ssl) << "\"(" << SSL_get_state(ssl) << ")" << "." << endl;
+#endif
+			return false;
+		}
 	}
 
 	size_t written = 0;
@@ -474,13 +500,13 @@ bool lazy::Web::write(std::string msg)
 				if (get_error() == WSAEWOULDBLOCK ||
 					get_error() == WSAEALREADY)continue;
 #ifdef _DEBUG
-				std::cout << "Failed to write: " << get_error_str() << "." << std::endl;
+				cout << "Failed to write: " << get_error_str() << "." << endl;
 #endif
 				return false;
 
 			default:
 #ifdef _DEBUG
-				std::cout << "Failed to write. SSL_get_error() returned " << err << "." << std::endl;
+				cout << "Failed to write. SSL_get_error returned " << err << "." << endl;
 #endif
 				return false;
 			}
@@ -493,7 +519,7 @@ bool lazy::Web::write(std::string msg)
 		if (res < 0)
 		{
 #ifdef _DEBUG
-			std::cout << "Failed to write: " << get_error_str() << "." << std::endl;
+			cout << "Failed to write: " << get_error_str() << "." << endl;
 #endif
 			return false;
 		}
