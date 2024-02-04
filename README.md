@@ -6,7 +6,7 @@ LazyWeb is based on Windows API (WinSock) and OpenSSL and multi-threaded.
 
 LazyWeb offers a class, `lazy::Web`, as the interface. It could be used to `connect()`, `write()`, `read()` for **Client** use. The I/O is also suppored SSL. Also, `lazy::Web` offers `write()`, `read()`, `listen()`, `accept()` for **Server** use. LazyWeb creates a `recv_thread` to recv messages so that LazyWeb will be **non-blocking**. All the messages will be stored to a file at once.
 
-LazyWeb uses class `lazy::Msg` to manage http messages, and offers `lazy::WebHelper` to help developers to do web operation.
+LazyWeb uses class `lazy::Msg` to manage http messages, and offers `lazy::WebHelper`.
 
 ## Quickstart
 
