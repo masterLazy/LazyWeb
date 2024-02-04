@@ -90,24 +90,9 @@ void lazy::Web::recv_loop(Web& web)
 	web.sg_end_ok = true;
 }
 
-bool lazy::Web::init(bool startup_ssl)
+bool lazy::Web::init_except_ssl_c()
 {
 	int res;
-	//Startup SSL
-	if (startup_ssl)
-	{
-		OpenSSL_add_ssl_algorithms();
-		SSL_load_error_strings();
-		SSLeay_add_ssl_algorithms();
-		//Create CTX
-		ctx = SSL_CTX_new(TLS_client_method());
-		//Set verify method (non-verify)
-		SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
-		//Create SSL
-		ssl = SSL_new(ctx);
-	}
-
-
 	//Startup WSA
 	res = WSAStartup(MAKEWORD(2, 2), &wd);
 	if (res != 0)
@@ -141,6 +126,75 @@ bool lazy::Web::init(bool startup_ssl)
 	mode = Mode::client;
 	return true;
 }
+
+bool lazy::Web::init(bool startup_ssl, bool verify)
+{
+	using namespace std;
+	int res;
+	//Startup SSL
+	if (startup_ssl)
+	{
+		ssl_verify = verify;
+		OpenSSL_add_ssl_algorithms();
+		SSL_library_init();
+		SSL_load_error_strings();
+		SSLeay_add_ssl_algorithms();
+		//Create CTX
+		ctx = SSL_CTX_new(SSLv23_client_method());
+		if (!ctx)
+		{
+#ifdef _DEBUG
+			cout << "Failed to create SSL_CTX." << endl;
+#endif
+			return false;
+		}
+		//Set verify mode
+		SSL_CTX_set_verify(ctx, verify ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, NULL);
+		if (!verify)
+		{
+			//Load CA certificate
+			if (!SSL_CTX_set_default_verify_paths(ctx))
+			{
+#ifdef _DEBUG
+				cout << "Failed to load CA certificate file." << endl;
+#endif
+				return false;
+			}
+
+			if (!SSL_CTX_use_certificate_file(ctx, "client.crt", SSL_FILETYPE_PEM))
+			{
+#ifdef _DEBUG
+				cout << "Failed to load certificate file." << endl;
+#endif
+				return false;
+			}
+			if (!SSL_CTX_use_PrivateKey_file(ctx, "client.key", SSL_FILETYPE_PEM))
+			{
+#ifdef _DEBUG
+				cout << "Failed to load private key." << endl;
+#endif
+				return false;
+			}
+		}
+		//Create SSL
+		ssl = SSL_new(ctx);
+		if (!ssl)
+		{
+#ifdef _DEBUG
+			cout << "Failed to create SSL." << endl;
+#endif
+			SSL_CTX_free(ctx);
+			return false;
+		}
+		SSL_set_verify(ssl, verify ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, NULL);
+	}
+	else
+	{
+		ssl_verify = false;
+	}
+
+	return init_except_ssl_c();
+}
 bool lazy::Web::init(std::string ip, int port, bool startup_ssl)
 {
 	int res;
@@ -151,7 +205,7 @@ bool lazy::Web::init(std::string ip, int port, bool startup_ssl)
 		SSL_load_error_strings();
 		SSLeay_add_ssl_algorithms();
 		//Create CTX
-		ctx = SSL_CTX_new(TLS_server_method());
+		ctx = SSL_CTX_new(SSLv23_server_method());
 		//Set verify method (non-verify)
 		SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
 		//Create SSL
@@ -262,12 +316,12 @@ bool lazy::Web::connect(std::string _host, int port, float waitSec)
 	}
 #endif
 
-	//Config addr port
+	//Set addr port
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(port);
 
-	//Config addr IP
+	//Set addr IP
 	bool hostName = false;
 	for (int i = 0; i < _host.size(); i++)
 	{
@@ -350,6 +404,26 @@ bool lazy::Web::connect(std::string _host, int port, float waitSec)
 				<< get_error_str() << "." << endl;
 #endif
 			return false;
+		}
+
+		//Verify
+		if (ssl_verify)
+		{
+			X509* cert = SSL_get_peer_certificate(ssl);
+			if (cert)
+			{
+				if (SSL_get_verify_result(ssl) != X509_V_OK)
+				{
+					cout << "Warning: Server certificate verification failed." << endl;
+				}
+				else
+				{
+#ifdef _DEBUG
+					cout << "Server certificate verified." << endl;
+#endif
+				}
+				X509_free(cert);
+			}
 		}
 	}
 
@@ -1030,7 +1104,7 @@ bool lazy::WebHelper::send_get_msg(std::string url)
 	//Unneccessary, maybe
 	msg += "Date: " + WebHelper::get_date_str() + "\r\n";
 	msg += "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\r\n";
-	msg += "Accept-Encoding: gzip, deflate, br\r\n";
+	msg += "Accept-Encoding: identity\r\n";
 	msg += "\r\n";
 
 	return web->write(msg);

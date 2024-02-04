@@ -62,6 +62,7 @@ namespace lazy
 		//SSL
 		SSL* ssl = nullptr;
 		SSL_CTX* ctx = nullptr;
+		bool ssl_verify;
 
 		//Recv thread
 		std::thread* recv_td;
@@ -86,16 +87,18 @@ namespace lazy
 
 		Mode mode = Mode::undefined;
 
+		bool init_except_ssl_c();
 
 	public:
 		Web();
 		~Web();
 
 		//Initialize as CLIENT
-		bool init(bool startup_ssl = true);
+		//SSL verify mode: SSL_VERIFY_NONE
+		bool init(bool startup_ssl, bool verify = true);
 
 		//Initialize as SERVER
-		bool init(std::string ip, int port, bool not_startup_ssl = false);
+		bool init(std::string ip, int port, bool startup_ssl);
 
 		//Set path of received file
 		bool set_recv_path(std::string);
