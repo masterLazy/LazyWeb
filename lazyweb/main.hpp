@@ -450,7 +450,7 @@ bool lazy::Web::write(std::string msg)
 		return false;
 	}
 
-	size_t written;
+	size_t written = 0;
 	int res, err;
 	//SSL
 	if (ssl != nullptr)
@@ -937,7 +937,11 @@ int lazy::WebHelper::get_url_port(std::string url)
 	{
 		return HTTPS_PORT;
 	}
-	return -1;
+#ifdef _DEBUG
+	cout << "Failed to get port from URL." << endl;
+#endif
+
+	return 0;
 }
 
 std::vector<std::string> lazy::WebHelper::find_url(std::string str)
