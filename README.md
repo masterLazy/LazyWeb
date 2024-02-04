@@ -24,13 +24,13 @@ int main()
 
   //Instantiate lazy::web
   Web web;
-  //Initialization
+  //Initializate
   web.init();
   //Connect to the server
   web.connect(url);
 
   //Send a GET msg
-  WenHelper(web).send_get_msg(url);
+  WebHelper(web).send_get_msg(url);
 
   //Wait and recv msg
   while(web.msg_empty());
