@@ -28,7 +28,7 @@
 #pragma comment(lib,"libcrypto.lib")
 
 //Http message support
-#include "http_msg.hpp"
+#include "httpMsg.hpp"
 
 /*****************************************************************************
 * lazy::Web
@@ -83,8 +83,6 @@ namespace lazy
 
 
 	public:
-		bool del_msg = false;	//If delete recived msg when ~Web()
-
 		Web();
 		~Web();
 
@@ -134,6 +132,8 @@ namespace lazy
 		void msg_clear();
 		//Read a msg for read queue
 		Msg read();
+		//Peek a msg for read queue
+		Msg peek();
 	};
 }
 

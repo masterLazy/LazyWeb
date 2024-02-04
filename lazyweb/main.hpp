@@ -440,7 +440,21 @@ lazy::Msg lazy::Web::read()
 	if (msg_queue.empty())
 	{
 #ifdef _DEBUG
-		std::cout << "Failed to read: Msg queue is empty." << std::endl;
+		std::cout << "Failed to read msg: Msg queue is empty." << std::endl;
+#endif
+		Msg m;
+		return m;
+	}
+	Msg m = msg_queue.back();
+	msg_queue.pop();
+	return m;
+}
+lazy::Msg lazy::Web::peek()
+{
+	if (msg_queue.empty())
+	{
+#ifdef _DEBUG
+		std::cout << "Failed to peek msg: Msg queue is empty." << std::endl;
 #endif
 		Msg m;
 		return m;
@@ -522,7 +536,6 @@ bool lazy::Msg::analysis()
 	}
 	fline = msg.substr(0, msg.find("\r\n"));
 
-	string suf = "";
 	//Header
 	size_t i = msg.find("\r\n") + 2;
 	header.clear();
@@ -535,7 +548,6 @@ bool lazy::Msg::analysis()
 			(msg.find("; ", i) == string::npos ? msg.find("\r\n",i) : min(msg.find("\r\n",i),msg.find("; ",i)))
 			- (msg.find(": ", i) + 2))
 			});
-		if (header.back().first == "Content-Type")suf = WebHelper::get_file_suf(header.back().second);
 
 		if (msg.find("\r\n\r\n") == msg.find("\r\n", i))break;
 		i = msg.find("\r\n", i) + 2;
@@ -576,7 +588,7 @@ bool lazy::Msg::analysis()
 	//Save body to file
 	string fname = filename.substr(0, filename.find_last_of('/') + 1);
 	fname += "body";
-	fname += suf;
+	fname += get_header("Content-Type");
 	ofstream of;
 	of.open(fname, ios::binary);
 	if (!of.is_open())
@@ -598,6 +610,7 @@ bool lazy::Msg::analysis()
 	delete msg_c;
 	return true;
 }
+
 bool lazy::Msg::load_from_file(std::string _filename)
 {
 	using namespace std;
@@ -616,6 +629,10 @@ bool lazy::Msg::load_from_file(std::string _filename)
 	filename = _filename;
 
 	return analysis();
+}
+bool lazy::Msg::del_file()
+{
+	return DeleteFileA(filename.c_str());
 }
 
 std::string lazy::Msg::get_str()
@@ -673,9 +690,32 @@ bool lazy::Msg::get_str(char** str, size_t* pSize)
 	return true;
 }
 
-bool lazy::Msg::del_file()
+std::string lazy::Msg::get_fline()
 {
-	return DeleteFileA(filename.c_str());
+	return fline;
+}
+int lazy::Msg::get_state_code()
+{
+	if (fline[0] != 'H')return 0;
+	//           "HTTP/1.1 ".size = 9
+	std::string code = fline.substr(9, fline.find_last_of(' ') - 9);
+	return stoi(code);
+}
+std::string lazy::Msg::get_header(std::string item)
+{
+	if (header.empty())return "";
+	for (size_t i = 0; i < header.size(); i++)
+	{
+		if (header[i].first == item)return header[i].second;
+	}
+}
+std::string lazy::Msg::get_par(std::string item)
+{
+	if (par.empty())return "";
+	for (size_t i = 0; i < par.size(); i++)
+	{
+		if (par[i].first == item)return par[i].second;
+	}
 }
 
 
