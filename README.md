@@ -14,9 +14,9 @@ LazyWeb uses class `lazy::Msg` to manage http messages, and offers `lazy::WebHel
 
 ```cpp
 #include <iostream>
-using namespace std;
 //Includes the lib
 #include <lazyweb/lazyweb.hpp>
+using namespace std;
 using namespace lazy;
 int main()
 {
@@ -43,6 +43,21 @@ int main()
   return 0;
 }
 ```
+
+### Start with automatic helper
+```cpp
+#include <iostream>
+#include "lazyweb/lazyweb.hpp"
+using namespace std;
+using namespace lazy;
+int main()
+{
+	Msg msg = WebHelper::auto_get("https://www.microsoft.com/en-us/");
+  cout << msg.get_str() << endl;
+	return 0;
+}
+```
+See? LazyWeb is easy to use.
 
 ## File `#include` tree
 `lazyweb.hpp`
