@@ -22,7 +22,7 @@ int main()
 {
 	string url="https://www.microsoft.com/en-us/"
 
-	//Instantiate lazy::web
+	//Initialize lazy::web
 	Web web;
 	//Initializate
 	web.init();
