@@ -95,7 +95,7 @@ namespace lazy
 
 		//Initialize as CLIENT
 		//SSL verify mode: SSL_VERIFY_NONE
-		bool init(bool startup_ssl, bool verify = true);
+		bool init(bool startup_ssl, bool verify = false);
 
 		//Initialize as SERVER
 		bool init(std::string ip, int port, bool startup_ssl);
