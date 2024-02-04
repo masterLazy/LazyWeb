@@ -44,14 +44,14 @@ int main()
 }
 ```
 
-## `#include` tree
+## File `#include` tree
 `lazyweb.hpp`
 
 |- `httpMsg.hpp`
 
 |- `webHelper.hpp`
 
-|- `main.hpp`
+|- `main.hpp` (Function definitions)
 
 ## Situation
 The development of LazyWeb is nearly half-done. It's under development. mLazy drew this picture to show his basic ideas:
