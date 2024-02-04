@@ -704,6 +704,7 @@ std::string lazy::Msg::get_header(std::string item)
 	{
 		if (header[i].first == item)return header[i].second;
 	}
+	return "";
 }
 std::string lazy::Msg::get_par(std::string item)
 {
@@ -745,6 +746,13 @@ std::string lazy::Msg::get_body()
 	f.close();
 	return res;
 }
+
+
+//lazy::MsgMaker
+
+
+lazy::MsgMaker::MsgMaker() {}
+lazy::MsgMaker::~MsgMaker() {}
 
 
 //lazy::WebHelper
@@ -892,7 +900,7 @@ std::vector<std::string> lazy::WebHelper::find_url(std::string str)
 }
 std::vector<std::string> lazy::WebHelper::find_url(Msg msg)
 {
-	if(msg.is_html())return find_url(msg.get_body());
+	if (msg.is_html())return find_url(msg.get_body());
 	else return std::vector<std::string>();
 }
 
@@ -1015,15 +1023,17 @@ bool lazy::WebHelper::send_get_msg(std::string url)
 	std::string msg;
 	msg += "GET " + WebHelper::get_url_res(url) + " HTTP/1.1\r\n";
 
-	msg += "Connection: Keep-Alive\r\n";
-	msg += "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0\r\n";
-	msg += "Cache-Control: no-cache\r\n";
-	msg += "Date: " + WebHelper::get_date_str() + "\r\n";
+	//Neccessary
+	msg += "Connection: keep-alive\r\n";
 	msg += "Host: " + web->get_hostname() + "\r\n";
+	msg += "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0\r\n";
+	//Unneccessary, maybe
+	msg += "Date: " + WebHelper::get_date_str() + "\r\n";
+	msg += "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\r\n";
+	msg += "Accept-Encoding: gzip, deflate, br\r\n";
 	msg += "\r\n";
 
-	web->write(msg);
-	return true;
+	return web->write(msg);
 }
 
 lazy::Msg lazy::WebHelper::auto_get(std::string url)

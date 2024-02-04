@@ -52,4 +52,11 @@ namespace lazy
 		//Get the string of body
 		std::string get_body();
 	};
+
+	class MsgMaker
+	{
+	public:
+		MsgMaker();
+		~MsgMaker();
+	};
 }
