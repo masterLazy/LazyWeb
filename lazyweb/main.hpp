@@ -1023,6 +1023,7 @@ bool lazy::WebHelper::send_get_msg(std::string url)
 	msg += "\r\n";
 
 	web->write(msg);
+	return true;
 }
 
 lazy::Msg lazy::WebHelper::auto_get(std::string url)
