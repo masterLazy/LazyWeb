@@ -20,21 +20,17 @@ using namespace std;
 using namespace lazy;
 int main()
 {
+  string url="https://www.microsoft.com/en-us/"
+
   //Instantiate lazy::web
   Web web;
   //Initialization
   web.init();
   //Connect to the server
-  web.connect("https://www.microsoft.com/");
+  web.connect(url);
 
   //Send a GET msg
-  string msg;
-  msg += "GET /en-us HTTP/1.1\r\n";
-  msg += "Connection: Keep-Alive\r\n";
-  msg += "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0\r\n";
-  msg += "Host: www.microsoft.com\r\n";
-  msg += "\r\n";
-  web.write(msg);
+  WenHelper(web).send_get_msg(url);
 
   //Wait and recv msg
   while(web.msg_empty());
