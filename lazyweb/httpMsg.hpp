@@ -46,5 +46,10 @@ namespace lazy
 		std::string get_header(std::string item);
 		//Get the parameters (request msg only)
 		std::string get_par(std::string par);
+
+		//If body is html (response msg only)
+		bool is_html();
+		//Get the string of body
+		std::string get_body();
 	};
 }

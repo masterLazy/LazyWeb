@@ -22,7 +22,6 @@ namespace lazy
 		//Get time string (the one and only)
 		//Example: 20130108_08-53-29_0001
 		static std::string get_time_str();
-
 		//Get date string
 		//Example: Tue, 08 Jan 2013 08:53:29 GMT
 		static std::string get_date_str();
@@ -37,6 +36,10 @@ namespace lazy
 		static std::string get_url_res(std::string url);
 		//Get port from URL
 		static int get_url_port(std::string url);
+
+		//Find urls
+		static std::vector<std::string> find_url(std::string);
+		static std::vector<std::string> find_url(Msg);
 
 
 		//File type / suf helper
@@ -62,5 +65,10 @@ namespace lazy
 		//SERVER helper
 
 
+		//Automatic helper
+
+
+		//Autoly get a url
+		static Msg auto_get(std::string url);
 	};
 }

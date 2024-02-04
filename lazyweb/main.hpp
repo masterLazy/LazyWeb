@@ -442,8 +442,7 @@ lazy::Msg lazy::Web::read()
 #ifdef _DEBUG
 		std::cout << "Failed to read msg: Msg queue is empty." << std::endl;
 #endif
-		Msg m;
-		return m;
+		return Msg();
 	}
 	Msg m = msg_queue.back();
 	msg_queue.pop();
@@ -456,8 +455,7 @@ lazy::Msg lazy::Web::peek()
 #ifdef _DEBUG
 		std::cout << "Failed to peek msg: Msg queue is empty." << std::endl;
 #endif
-		Msg m;
-		return m;
+		return Msg();
 	}
 	return msg_queue.back();
 }
@@ -586,9 +584,7 @@ bool lazy::Msg::analysis()
 	get_str(&msg_c, &size);
 
 	//Save body to file
-	string fname = filename.substr(0, filename.find_last_of('/') + 1);
-	fname += "body";
-	fname += get_header("Content-Type");
+	string fname = filename.substr(0, filename.find_last_of('/') + 1) + "body" + WebHelper::get_file_suf(get_header("Content-Type"));
 	ofstream of;
 	of.open(fname, ios::binary);
 	if (!of.is_open())
@@ -644,7 +640,7 @@ std::string lazy::Msg::get_str()
 	if (!f.is_open())
 	{
 #ifdef _DEBUG
-		cout << "Failed to get msg string: cannot open file." << endl;
+		cout << "Failed to get msg string: Failed to open file." << endl;
 #endif
 		return "";
 	}
@@ -669,7 +665,7 @@ bool lazy::Msg::get_str(char** str, size_t* pSize)
 	if (!f.is_open())
 	{
 #ifdef _DEBUG
-		cout << "Failed to get msg string: cannot open file." << endl;
+		cout << "Failed to get msg string: Failed to open file." << endl;
 #endif
 		return false;
 	}
@@ -716,6 +712,38 @@ std::string lazy::Msg::get_par(std::string item)
 	{
 		if (par[i].first == item)return par[i].second;
 	}
+}
+
+bool lazy::Msg::is_html()
+{
+	return (WebHelper::get_file_suf(get_header("Content-Type")) == ".html");
+}
+std::string lazy::Msg::get_body()
+{
+	using namespace std;
+
+	ifstream f;
+	f.open(filename.substr(0, filename.find_last_of('/') + 1) + "body" + WebHelper::get_file_suf(get_header("Content-Type")),
+		ios::binary);
+	if (!f.is_open())
+	{
+#ifdef _DEBUG
+		cout << "Failed to get body string: Failed to open file." << endl;
+#endif
+		return "";
+	}
+
+	string res;
+	char* buf = new char[WEB_IO_BUFSIZE + 1];
+	memset(buf, 0, WEB_IO_BUFSIZE + 1);
+	while (!f.eof())
+	{
+		f.read(buf, WEB_IO_BUFSIZE);
+		res += buf;
+	}
+	delete buf;
+	f.close();
+	return res;
 }
 
 
@@ -828,6 +856,44 @@ int lazy::WebHelper::get_url_port(std::string url)
 		return HTTPS_PORT;
 	}
 	return -1;
+}
+
+std::vector<std::string> lazy::WebHelper::find_url(std::string str)
+{
+	using namespace std;
+	vector<string> urls;
+
+	//Replace "\" with "/"
+	while (str.find("\\/") != string::npos)
+	{
+		str.erase(str.find("\\/"), 1);
+	}
+
+	//Find it!
+	string::const_iterator start = str.begin();
+	string::const_iterator end = str.end();
+	string url;
+	smatch mat;
+	regex reg("https://[^\\s'\"<>():,]+");
+	while (regex_search(start, end, mat, reg))
+	{
+		url = string(mat[0].first, mat[0].second);
+		start = mat[0].second;
+		urls.push_back(url);
+	}
+	reg = "http://[^\\s'\"<>():,]+";
+	while (regex_search(start, end, mat, reg))
+	{
+		url = string(mat[0].first, mat[0].second);
+		start = mat[0].second;
+		urls.push_back(url);
+	}
+	return urls;
+}
+std::vector<std::string> lazy::WebHelper::find_url(Msg msg)
+{
+	if(msg.is_html())return find_url(msg.get_body());
+	else return std::vector<std::string>();
 }
 
 std::string lazy::WebHelper::get_file_type(std::string filename)
@@ -957,4 +1023,18 @@ bool lazy::WebHelper::send_get_msg(std::string url)
 	msg += "\r\n";
 
 	web->write(msg);
+}
+
+lazy::Msg lazy::WebHelper::auto_get(std::string url)
+{
+	Web web;
+	web.init(url.find("https") != std::string::npos);
+	web.connect(url);
+
+	WebHelper(web).send_get_msg(url);
+
+	time_t timer = clock();
+	while (web.msg_empty() && clock() - timer < WEB_AUTO_OVERTIME);
+
+	return web.read();
 }

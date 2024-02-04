@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <queue>
+#include <regex>
 #include <thread>
 #include <fstream>
 #include <ctime>
@@ -45,8 +46,16 @@ namespace lazy
 	//Recv overtime time
 	const int WEB_RECV_OVERTIME = 1000;
 
+	//Auto operation overtime time
+	const int WEB_AUTO_OVERTIME = 1000 * 10;
+
 	class Web
 	{
+	public:
+		enum class Mode
+		{
+			undefined, client, server
+		};
 	private:
 		WSADATA wd;
 
@@ -75,11 +84,7 @@ namespace lazy
 		//For CLIENT: Server host name
 		std::string host;
 
-		enum class Mode
-		{
-			undefined, client, server
-		}
-		mode = Mode::undefined;
+		Mode mode = Mode::undefined;
 
 
 	public:
