@@ -1,12 +1,20 @@
 # LazyWeb
+
 A new **HTTP** SDK strives to be perfect and easy to use. (I have developed mWeb but I thought it was trash so I decide to create this. ) Both **HTTP Client** and **HTTP Server** are supported in LazyWeb.
 
 ## Introduction
-LazyWeb is based on Windows API (WinSock) and OpenSSL and multi-threaded.
 
-LazyWeb offers a class, `lazy::Web`, as the interface. It could be used to `connect()`, `write()`, `read()` for **Client** use. The I/O is also suppored SSL. Also, `lazy::Web` offers `write()`, `read()`, `listen()`, `accept()` for **Server** use. LazyWeb creates a `recv_thread` to receive messages so that LazyWeb will be **non-blocking**. All the messages will be stored to a file at once.
+LazyWeb is based on Windows API (WinSock) and OpenSSL.
 
-LazyWeb uses class `lazy::Msg` to manage http messages, and offers `lazy::WebHelper` to help `lazy::Web` and developers work.
+LazyWeb offers a class, `lazy::Web`, as the interface. LazyWeb creates a `recv_thread` to receive messages so that LazyWeb will be **non-blocking**. All the messages will be stored to a file at once.
+
+LazyWeb offers `lazy::Msg` to manage HTTP messages, `lazy::MsgMaker` to make HTTP messages, and `lazy::WebHelper`. 
+
+| Questions                                      | Answers                                         |
+| ---------------------------------------------- | ----------------------------------------------- |
+| What platform does LazyWeb support?            | Windows                                         |
+| What should I install as extra to run LazyWeb? | OpenSSL (Suggest using OpenSSL v3.2.1)          |
+| What network protocol does LazyWeb support?    | HTTP; HTTP + SSL/TLS; HTTP + QUIC (client only) |
 
 ## Quickstart
 
@@ -45,6 +53,7 @@ int main()
 ```
 
 ### Start with automatic helper
+
 ```cpp
 #include <iostream>
 #include "lazyweb/lazyweb.hpp"
@@ -57,9 +66,11 @@ int main()
 	return 0;
 }
 ```
+
 See? LazyWeb is easy to use.
 
 ## File `#include` tree
+
 `lazyweb.hpp`
 
 |- `httpMsg.hpp`
@@ -69,6 +80,7 @@ See? LazyWeb is easy to use.
 |- `main.hpp` (Function definitions)
 
 ## Situation
-The development of LazyWeb is nearly half-done. It's under development. mLazy drew this picture to show his basic ideas:
+
+The development of LazyWeb is nearly half-done. It's under development. mLazy drew this picture to show his basic ideas: 
 
 ![basic idea](basic_idea.png)
