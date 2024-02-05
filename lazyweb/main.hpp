@@ -167,8 +167,8 @@ bool lazy::Web::load_def_ca(SSL_CTX* ctx)
 #ifdef _DEBUG
 			cout << "Error: Failed to load CA certificate. " << endl;
 #endif
-			//CertCloseStore(hStore, 0);
-			//return false;
+			CertCloseStore(hStore, 0);
+			return false;
 		}
 #ifdef _DEBUG
 		cout << "Notice: Loaded " << num_certs << " CA certificate(s)." << endl;
@@ -405,8 +405,23 @@ bool lazy::Web::connect(std::string hostname, int port, float waitSec)
 	//Connect (SSL)
 	if (ssl != nullptr)
 	{
-		//SSL_set_fd(ssl, sock);//Set socket
-		SSL_set_connect_state(ssl);//Before SSL_connect()
+		//TLS ex
+		if (!SSL_set_tlsext_host_name(ssl, hostname.c_str()))
+		{
+#ifdef _DEBUG
+			cout << "Warning: Failed to set the SNI hostname." << endl;
+#endif
+		}
+		if (!SSL_set1_host(ssl, hostname.c_str()))
+		{
+#ifdef _DEBUG
+			cout << "Warning: Failed to set the SNI hostname." << endl;
+#endif
+		}
+
+		//Set SSL connection state
+		SSL_set_connect_state(ssl);
+
 		while (clock() - timer <= waitSec * 1000)
 		{
 			res = SSL_connect(ssl);
