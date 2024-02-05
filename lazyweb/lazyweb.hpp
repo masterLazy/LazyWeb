@@ -21,6 +21,7 @@
 #include <WinSock2.h>
 #include <WS2tcpip.h>
 #pragma comment(lib,"ws2_32.lib")
+#pragma comment(lib,"crypt32.lib")
 
 //Open SSL
 #include <openssl/ssl.h>
@@ -49,6 +50,11 @@ namespace lazy
 	//Auto operation overtime time
 	const int WEB_AUTO_OVERTIME = 1000 * 10;
 
+	//Address family
+	//AF_INET:	IPv4
+	//AF_INET6:	IPv6
+	const int WEB_ADDR_FAMILY = AF_INET;
+
 	class Web
 	{
 	public:
@@ -63,6 +69,7 @@ namespace lazy
 		SSL* ssl = nullptr;
 		SSL_CTX* ctx = nullptr;
 		bool ssl_verify;
+		bool quic;	//If use QUIC protocol
 
 		//Recv thread
 		std::thread* recv_td;
@@ -80,14 +87,17 @@ namespace lazy
 
 		//For CLIENT: Target server addr
 		//For SERVER: Bound addr
-		sockaddr_in addr;
+		addrinfo* addr;
 
 		//For CLIENT: Server host name
 		std::string host;
 
 		Mode mode = Mode::undefined;
 
-		bool init_except_ssl_c();
+		bool init_winsock_c();
+
+		bool load_def_ca(SSL_CTX* ctx);
+
 
 	public:
 		Web();
@@ -95,25 +105,29 @@ namespace lazy
 
 		//Initialize as CLIENT
 		//SSL verify mode: SSL_VERIFY_NONE
-		bool init(bool startup_ssl, bool verify = false);
+		bool init(bool ssl, bool ssl_verify = true, bool quic = false);
 
 		//Initialize as SERVER
-		bool init(std::string ip, int port, bool startup_ssl);
+		bool init(std::string ip, int port, bool ssl);
 
 		//Set path of received file
 		bool set_recv_path(std::string);
 
 		//Get self's SOCKET
 		SOCKET get_socket();
-		static int get_error();
-		static std::string get_error_str();
+		//Get WSA error code
+		static int get_err();
+		//Get WSA error string
+		static std::string get_err_str();
+		//Get SSL error string
+		std::string get_ssl_err_str();
 		Mode get_mode();
 
 
 		//Manual doing
 
 		//For CLIENT: connect to the server
-		bool connect(std::string host, int port, float waitSec = 3.0);
+		bool connect(std::string hostname, int port, float waitSec = 3.0);
 		//For CLIENT: connect to the server
 		bool connect(std::string url, float waitSec = 3.0);
 		//For CLIENT: get the server host's name

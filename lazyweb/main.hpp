@@ -90,7 +90,7 @@ void lazy::Web::recv_loop(Web& web)
 	web.sg_end_ok = true;
 }
 
-bool lazy::Web::init_except_ssl_c()
+bool lazy::Web::init_winsock_c()
 {
 	int res;
 	//Startup WSA
@@ -98,18 +98,18 @@ bool lazy::Web::init_except_ssl_c()
 	if (res != 0)
 	{
 #ifdef _DEBUG
-		std::cout << "Failed to startup WSA." << std::endl;
+		std::cout << "Error: Failed to startup WSA." << std::endl;
 #endif
 		return false;
 	}
 
 
 	//Create SOCKET
-	sock = socket(AF_INET, SOCK_STREAM, NULL);
+	sock = socket(WEB_ADDR_FAMILY, quic ? SOCK_DGRAM : SOCK_STREAM, 0);
 	if (sock == -1)
 	{
 #ifdef _DEBUG
-		std::cout << "Failed to create SOCKET: " << get_error_str() << "." << std::endl;
+		std::cout << "Error: Failed to create SOCKET: " << get_err_str() << "." << std::endl;
 #endif
 		close();
 		return false;
@@ -124,64 +124,104 @@ bool lazy::Web::init_except_ssl_c()
 	recv_td->detach();
 
 	mode = Mode::client;
+
+	SSL_set_fd(ssl, sock);
+	return true;
+}
+bool lazy::Web::load_def_ca(SSL_CTX* ctx)
+{
+	using namespace std;
+	//Using windows API to get system pre-installed CA certs
+	HCERTSTORE hStore = CertOpenSystemStore(0, L"ROOT");
+	if (hStore == NULL)
+	{
+#ifdef _DEBUG
+		cout << "Error: Failed to load CA certificate: CertOpenSystemStore() failed." << endl;
+#endif
+		return false;
+	}
+
+	//Enum and load
+	PCCERT_CONTEXT cert = NULL;
+	X509_STORE* store = X509_STORE_new();
+	while ((cert = CertEnumCertificatesInStore(hStore, cert)) != NULL)
+	{
+		//.cer->.pem
+		X509* x509 = d2i_X509(NULL, (const unsigned char**)&cert->pbCertEncoded, cert->cbCertEncoded);
+
+		X509_STORE_add_cert(store, x509);
+
+		X509_free(x509);
+	}
+	SSL_CTX_set_cert_store(ctx, store);
+	//X509_STORE_free(store);
+
+	//Check the number of CA certs
+	X509_STORE* store_c = SSL_CTX_get_cert_store(ctx);
+	STACK_OF(X509)* certs = X509_STORE_get1_all_certs(store_c);
+	if (certs != NULL)
+	{
+		int num_certs = sk_X509_num(certs);
+		if (num_certs <= 0)
+		{
+#ifdef _DEBUG
+			cout << "Error: Failed to load CA certificate. " << endl;
+#endif
+			//CertCloseStore(hStore, 0);
+			//return false;
+		}
+#ifdef _DEBUG
+		cout << "Notice: Loaded " << num_certs << " CA certificate(s)." << endl;
+#endif
+	}
+	else
+	{
+#ifdef _DEBUG
+		cout << "Error: Failed to load CA certificate." << endl;
+#endif
+		CertCloseStore(hStore, 0);
+		return false;
+	}
+
+	CertCloseStore(hStore, 0);
 	return true;
 }
 
-bool lazy::Web::init(bool startup_ssl, bool verify)
+bool lazy::Web::init(bool _ssl, bool verify, bool _quic)
 {
 	using namespace std;
 	int res;
+	quic = _quic;
 	//Startup SSL
-	if (startup_ssl)
+	if (_ssl)
 	{
 		ssl_verify = verify;
-		OpenSSL_add_ssl_algorithms();
+		OpenSSL_add_all_algorithms();
 		SSL_library_init();
 		SSL_load_error_strings();
 		SSLeay_add_ssl_algorithms();
 		//Create CTX
-		ctx = SSL_CTX_new(SSLv23_client_method());
-		if (!ctx)
+		ctx = SSL_CTX_new(quic ? OSSL_QUIC_client_method() : TLS_client_method());
+		if (ctx == NULL)
 		{
 #ifdef _DEBUG
-			cout << "Failed to create SSL_CTX." << endl;
+			cout << "Error: Failed to initialize: Failed to create SSL_CTX." << endl;
 #endif
 			return false;
 		}
 		//Set verify mode
 		SSL_CTX_set_verify(ctx, verify ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, NULL);
-		if (!verify)
+		if (verify)
 		{
 			//Load CA certificate
-			if (!SSL_CTX_set_default_verify_paths(ctx))
-			{
-#ifdef _DEBUG
-				cout << "Failed to load CA certificate file." << endl;
-#endif
-				return false;
-			}
-
-			if (!SSL_CTX_use_certificate_file(ctx, "client.crt", SSL_FILETYPE_PEM))
-			{
-#ifdef _DEBUG
-				cout << "Failed to load certificate file." << endl;
-#endif
-				return false;
-			}
-			if (!SSL_CTX_use_PrivateKey_file(ctx, "client.key", SSL_FILETYPE_PEM))
-			{
-#ifdef _DEBUG
-				cout << "Failed to load private key." << endl;
-#endif
-				return false;
-			}
+			if (!load_def_ca(ctx))return false;
 		}
 		//Create SSL
 		ssl = SSL_new(ctx);
-		if (!ssl)
+		if (ssl == NULL)
 		{
 #ifdef _DEBUG
-			cout << "Failed to create SSL." << endl;
+			cout << "Error: Failed to initialize: Failed to create SSL." << endl;
 #endif
 			SSL_CTX_free(ctx);
 			return false;
@@ -193,7 +233,7 @@ bool lazy::Web::init(bool startup_ssl, bool verify)
 		ssl_verify = false;
 	}
 
-	return init_except_ssl_c();
+	return init_winsock_c();
 }
 bool lazy::Web::init(std::string ip, int port, bool startup_ssl)
 {
@@ -201,11 +241,12 @@ bool lazy::Web::init(std::string ip, int port, bool startup_ssl)
 	//Startup SSL
 	if (startup_ssl)
 	{
-		OpenSSL_add_ssl_algorithms();
+		OpenSSL_add_all_algorithms();
+		SSL_library_init();
 		SSL_load_error_strings();
 		SSLeay_add_ssl_algorithms();
 		//Create CTX
-		ctx = SSL_CTX_new(SSLv23_server_method());
+		ctx = SSL_CTX_new(TLS_server_method());
 		//Set verify method (non-verify)
 		SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
 		//Create SSL
@@ -218,18 +259,18 @@ bool lazy::Web::init(std::string ip, int port, bool startup_ssl)
 	if (res != 0)
 	{
 #ifdef _DEBUG
-		std::cout << "Failed to startup WSA." << std::endl;
+		std::cout << "Error: Failed to startup WSA." << std::endl;
 #endif
 		return false;
 	}
 
 
 	//Create SOCKET
-	sock = socket(AF_INET, SOCK_STREAM, NULL);
+	sock = socket(WEB_ADDR_FAMILY, SOCK_STREAM, 0);
 	if (sock == -1)
 	{
 #ifdef _DEBUG
-		std::cout << "Failed to create SOCKET: " << get_error_str() << "." << std::endl;
+		std::cout << "Error: Failed to create SOCKET: " << get_err_str() << "." << std::endl;
 #endif
 		close();
 		return false;
@@ -240,7 +281,7 @@ bool lazy::Web::init(std::string ip, int port, bool startup_ssl)
 
 
 	//Bind addr(Name socket)
-	memset(&addr, 0, sizeof(addr));
+	/*memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(port);
 	inet_pton(AF_INET, ip.c_str(), &addr.sin_addr);
@@ -248,10 +289,10 @@ bool lazy::Web::init(std::string ip, int port, bool startup_ssl)
 	{
 		close();
 #ifdef _DEBUG
-		std::cout << "Failed to bind SOCKET: " << get_error_str() << "." << std::endl;
+		std::cout << "Error: Failed to bind SOCKET: " << get_error_str() << "." << std::endl;
 #endif
 		return false;
-	}
+	}*/
 
 	//Create thread
 	recv_td = new std::thread(recv_loop, std::ref(*this));
@@ -285,21 +326,21 @@ bool lazy::Web::set_recv_path(std::string path)
 	return true;
 }
 
-bool lazy::Web::connect(std::string _host, int port, float waitSec)
+bool lazy::Web::connect(std::string hostname, int port, float waitSec)
 {
 	using namespace std;
-	host = _host;
+	host = hostname;
 
 	if (mode != Mode::client)
 	{
 #ifdef _DEBUG
 		if (mode == Mode::undefined)
 		{
-			cout << "Failed to connect: Not initialized." << endl;
+			cout << "Error: Failed to connect: Not initialized." << endl;
 		}
 		else
 		{
-			cout << "Failed to connect: Should be in client mode." << endl;
+			cout << "Error: Failed to connect: Should be in client mode." << endl;
 		}
 #endif
 		return false;
@@ -316,49 +357,30 @@ bool lazy::Web::connect(std::string _host, int port, float waitSec)
 	}
 #endif
 
-	//Set addr port
-	memset(&addr, 0, sizeof(addr));
-	addr.sin_family = AF_INET;
-	addr.sin_port = htons(port);
-
-	//Set addr IP
-	bool hostName = false;
-	for (int i = 0; i < _host.size(); i++)
-	{
-		if (_host[i] >= 'A' && _host[i] <= 'Z' ||
-			_host[i] >= 'a' && _host[i] <= 'z')
-		{
-			hostName = true;
-			break;
-		}
-	}
-	//Given "_host" is _host name
-	if (hostName)
-	{
-		if (gethostbyname(_host.c_str()) == nullptr)
-		{
-#ifdef _DEBUG
-			cout << "Failed to connect: Host not found." << endl;
-#endif
-			return false;
-		}
-		else
-		{
-			memcpy(&addr.sin_addr, gethostbyname(_host.c_str())->h_addr, 4);
-		}
-	}
-	//is IP
-	else
-	{
-		inet_pton(AF_INET, _host.c_str(), &addr.sin_addr);
-	}
-
 	int res, err = 0;
+
+	//Set addrinfo
+	addrinfo hints, * result;
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = WEB_ADDR_FAMILY;
+	hints.ai_socktype = quic ? SOCK_DGRAM : SOCK_STREAM;
+
+	string ports = to_string(port);
+	if (getaddrinfo(hostname.c_str(), ports.c_str(), &hints, &result) != 0)
+	{
+#ifdef _DEBUG
+		cout << "Error: Failed to connect: getaddrinfo() failed." << endl;
+#endif
+		return false;
+	}
+	addr = result;
+
+
 	clock_t timer = clock();
 	//Connect (TCP)
 	while (clock() - timer <= waitSec * 1000)
 	{
-		res = ::connect(sock, (sockaddr*)&addr, sizeof(addr));
+		res = ::connect(sock, addr->ai_addr, addr->ai_addrlen);
 		if (res == 0)break;
 		else
 		{
@@ -374,8 +396,8 @@ bool lazy::Web::connect(std::string _host, int port, float waitSec)
 	if (clock() - timer > waitSec * 1000)
 	{
 #ifdef _DEBUG
-		cout << "Failed to connect: TCP connection overtime. "
-			<< get_error_str() << "." << endl;
+		cout << "Error: Failed to connect: TCP connection overtime. "
+			<< get_err_str() << "." << endl;
 #endif
 		return false;
 	}
@@ -383,7 +405,7 @@ bool lazy::Web::connect(std::string _host, int port, float waitSec)
 	//Connect (SSL)
 	if (ssl != nullptr)
 	{
-		SSL_set_fd(ssl, sock);//Set socket
+		//SSL_set_fd(ssl, sock);//Set socket
 		SSL_set_connect_state(ssl);//Before SSL_connect()
 		while (clock() - timer <= waitSec * 1000)
 		{
@@ -399,16 +421,24 @@ bool lazy::Web::connect(std::string _host, int port, float waitSec)
 		if (clock() - timer > waitSec * 1000)
 		{
 #ifdef _DEBUG
-			cout << "Failed to connect: SSL connection overtime. "
-				<< get_error_str() << "." << endl;
+			cout << "Error: Failed to connect: SSL connection overtime. "
+				<< get_err_str() << "." << endl;
 #endif
 			return false;
 		}
 		else if (err != SSL_ERROR_NONE)
 		{
 #ifdef _DEBUG
-			cout << "Failed to connect. SSL_get_error returned "
-				<< err << "." << endl;
+			if (err == SSL_ERROR_SYSCALL)
+			{
+				cout << "Error: Failed to connect. "
+					<< get_err_str() << get_ssl_err_str() << "." << endl;
+			}
+			else
+			{
+				cout << "Error: Failed to connect. "
+					<< get_ssl_err_str() << "." << endl;
+			}
 #endif
 			return false;
 		}
@@ -416,25 +446,14 @@ bool lazy::Web::connect(std::string _host, int port, float waitSec)
 		//Verify
 		if (ssl_verify)
 		{
-			X509* cert = SSL_get_peer_certificate(ssl);
-			if (cert)
+			if (SSL_get_verify_result(ssl) != X509_V_OK)
 			{
-				if (SSL_get_verify_result(ssl) != X509_V_OK)
-				{
-					cout << "Warning: Server certificate verification failed." << endl;
-				}
-				else
-				{
-#ifdef _DEBUG
-					cout << "Server certificate verified." << endl;
-#endif
-				}
-				X509_free(cert);
+				cout << "Warning: Server certificate verification failed." << endl;
 			}
 			else
 			{
 #ifdef _DEBUG
-				cout << "Notice: Server dosen't provide certificate file." << endl;
+				cout << "Notice: Server certificate verified." << endl;
 #endif
 			}
 		}
@@ -448,6 +467,7 @@ bool lazy::Web::connect(std::string url, float waitSec)
 {
 	return connect(WebHelper::get_url_host(url), WebHelper::get_url_port(url), waitSec);
 }
+
 std::string lazy::Web::get_hostname()
 {
 	return host;
@@ -459,7 +479,7 @@ bool lazy::Web::write(std::string msg)
 	if (mode == Mode::undefined)
 	{
 #ifdef _DEBUG
-		cout << "Failed to write: Not initialized." << endl;
+		cout << "Error: Failed to write: Not initialized." << endl;
 #endif
 		return false;
 	}
@@ -469,7 +489,7 @@ bool lazy::Web::write(std::string msg)
 		if (SSL_get_state(ssl) != TLS_ST_OK)
 		{
 #ifdef _DEBUG
-			cout << "Failed to write: SSL state error. The SSL state is \"" <<
+			cout << "Error: Failed to write: SSL state error. The SSL state is \"" <<
 				SSL_state_string_long(ssl) << "\"(" << SSL_get_state(ssl) << ")" << "." << endl;
 #endif
 			return false;
@@ -497,16 +517,17 @@ bool lazy::Web::write(std::string msg)
 				continue;
 
 			case SSL_ERROR_SYSCALL:
-				if (get_error() == WSAEWOULDBLOCK ||
-					get_error() == WSAEALREADY)continue;
+				if (get_err() == WSAEWOULDBLOCK ||
+					get_err() == WSAEALREADY)continue;
 #ifdef _DEBUG
-				cout << "Failed to write: " << get_error_str() << "." << endl;
+				cout << "Error: Failed to write: " << get_err_str() << "." << endl;
 #endif
 				return false;
 
 			default:
 #ifdef _DEBUG
-				cout << "Failed to write. SSL_get_error returned " << err << "." << endl;
+				cout << "Error: Failed to write. SSL_get_error() returned " <<
+					get_ssl_err_str() << "." << endl;
 #endif
 				return false;
 			}
@@ -519,7 +540,7 @@ bool lazy::Web::write(std::string msg)
 		if (res < 0)
 		{
 #ifdef _DEBUG
-			cout << "Failed to write: " << get_error_str() << "." << endl;
+			cout << "Error: Failed to write: " << get_err_str() << "." << endl;
 #endif
 			return false;
 		}
@@ -540,7 +561,7 @@ lazy::Msg lazy::Web::read()
 	if (msg_queue.empty())
 	{
 #ifdef _DEBUG
-		std::cout << "Failed to read msg: Msg queue is empty." << std::endl;
+		std::cout << "Error: Failed to read msg: Msg queue is empty." << std::endl;
 #endif
 		return Msg();
 	}
@@ -553,7 +574,7 @@ lazy::Msg lazy::Web::peek()
 	if (msg_queue.empty())
 	{
 #ifdef _DEBUG
-		std::cout << "Failed to peek msg: Msg queue is empty." << std::endl;
+		std::cout << "Error: Failed to peek msg: Msg queue is empty." << std::endl;
 #endif
 		return Msg();
 	}
@@ -564,11 +585,11 @@ SOCKET lazy::Web::get_socket()
 {
 	return sock;
 }
-int lazy::Web::get_error()
+int lazy::Web::get_err()
 {
 	return WSAGetLastError();
 }
-std::string lazy::Web::get_error_str()
+std::string lazy::Web::get_err_str()
 {
 	int err = WSAGetLastError();
 	char* temp = nullptr;
@@ -588,6 +609,20 @@ std::string lazy::Web::get_error_str()
 
 	res.erase(res.size() - 3);
 	return res + "(" + std::to_string(err) + ")";
+}
+std::string lazy::Web::get_ssl_err_str()
+{
+	unsigned long err = ERR_get_error();
+	const char* s = ERR_reason_error_string(err);
+	if (s == NULL || s[0] == '\0')return "(" + std::to_string(err) + ")";
+
+	std::string str = s;
+	if (str == "ca md too weak")str = "CA MD too weak";
+	else if (str == "ee key too small")str = "EE key too small";
+	else if (str == "nested asn1 error")str = "Nested ASN1 error";
+	else str[0] = std::toupper(str[0]);
+	str += "(" + std::to_string(err) + ")";
+	return str;
 }
 lazy::Web::Mode lazy::Web::get_mode()
 {
@@ -628,7 +663,7 @@ bool lazy::Msg::analysis()
 	if (msg.find("\r\n") == string::npos)
 	{
 #ifdef _DEBUG
-		cout << "Failed to analysis msg: Invalid format." << endl;
+		cout << "Error: Failed to analysis msg: Invalid format." << endl;
 #endif
 		return false;
 	}
@@ -690,7 +725,7 @@ bool lazy::Msg::analysis()
 	if (!of.is_open())
 	{
 #ifdef _DEBUG
-		cout << "Failed to save msg body: Failed to open file." << endl;
+		cout << "Error: Failed to save msg body: Failed to open file." << endl;
 #endif
 		return false;
 	}
@@ -716,7 +751,7 @@ bool lazy::Msg::load_from_file(std::string _filename)
 	if (!f.is_open())
 	{
 #ifdef _DEBUG
-		cout << "Failed to load msg: cannot open file." << endl;
+		cout << "Error: Failed to load msg: cannot open file." << endl;
 #endif
 		return false;
 	}
@@ -740,7 +775,7 @@ std::string lazy::Msg::get_str()
 	if (!f.is_open())
 	{
 #ifdef _DEBUG
-		cout << "Failed to get msg string: Failed to open file." << endl;
+		cout << "Error: Failed to get msg string: Failed to open file." << endl;
 #endif
 		return "";
 	}
@@ -765,7 +800,7 @@ bool lazy::Msg::get_str(char** str, size_t* pSize)
 	if (!f.is_open())
 	{
 #ifdef _DEBUG
-		cout << "Failed to get msg string: Failed to open file." << endl;
+		cout << "Error: Failed to get msg string: Failed to open file." << endl;
 #endif
 		return false;
 	}
@@ -829,7 +864,7 @@ std::string lazy::Msg::get_body()
 	if (!f.is_open())
 	{
 #ifdef _DEBUG
-		cout << "Failed to get body string: Failed to open file." << endl;
+		cout << "Error: Failed to get body string: Failed to open file." << endl;
 #endif
 		return "";
 	}
@@ -964,7 +999,7 @@ int lazy::WebHelper::get_url_port(std::string url)
 		return HTTPS_PORT;
 	}
 #ifdef _DEBUG
-	cout << "Failed to get port from URL." << endl;
+	cout << "Error: Failed to get port from URL." << endl;
 #endif
 
 	return 0;
