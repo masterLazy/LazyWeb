@@ -25,7 +25,7 @@ int main()
 	//Initialize lazy::web
 	Web web;
 	//Initializate
-	web.init();
+	web.init(true);
 	//Connect to the server
 	web.connect(url);
 
