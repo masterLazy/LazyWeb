@@ -118,14 +118,15 @@ bool lazy::Web::init_winsock_c()
 	u_long ul = 1;
 	ioctlsocket(sock, FIONBIO, &ul);
 
+	//
+	if (ssl != nullptr)SSL_set_fd(ssl, sock);
+
 
 	//Create thread
 	recv_td = new std::thread(recv_loop, std::ref(*this));
 	recv_td->detach();
 
 	mode = Mode::client;
-
-	SSL_set_fd(ssl, sock);
 	return true;
 }
 bool lazy::Web::load_def_ca(SSL_CTX* ctx)
