@@ -38,8 +38,8 @@
 *****************************************************************************/
 namespace lazy
 {
-	const int HTTP_PORT = 80;
-	const int HTTPS_PORT = 443;
+	const int PORT_HTTP = 80;
+	const int PORT_HTTPS = 443;
 
 	//Recv, write, read, write, etc. buffer size
 	const int WEB_IO_BUFSIZE = 16 * 1024;
@@ -55,12 +55,14 @@ namespace lazy
 	//AF_INET6:	IPv6
 	const int WEB_ADDR_FAMILY = AF_INET;
 
+	//Web protocol
 	enum class WebProt
 	{
 		http,		//HTTP
 		https,		//HTTP + TLS/SSL
 		https_quic	//HTTP + QUIC
 	};
+	//HTTP version
 	enum class HttpVer
 	{
 		http_1_0,	//HTTP 1.0 (old)
@@ -110,6 +112,7 @@ namespace lazy
 		Mode mode = Mode::undefined;
 
 		bool init_winsock_c();
+
 		bool load_def_ca(SSL_CTX* ctx);
 		bool check_par_ok(WebProt, HttpVer);
 
@@ -135,7 +138,12 @@ namespace lazy
 		static std::string get_err_str();
 		//Get SSL error string
 		std::string get_ssl_err_str();
+		//Get mode
 		Mode get_mode();
+		//Get HTTP version
+		HttpVer get_http_ver();
+		//Get web protocol
+		WebProt get_protocol();
 
 
 		//Manual doing

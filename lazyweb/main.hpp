@@ -136,6 +136,7 @@ bool lazy::Web::init_winsock_c()
 	mode = Mode::client;
 	return true;
 }
+
 bool lazy::Web::load_def_ca(SSL_CTX* ctx)
 {
 	using namespace std;
@@ -200,6 +201,12 @@ bool lazy::Web::check_par_ok(WebProt p, HttpVer v)
 		v == HttpVer::http_3)
 	{
 		return false;
+	}
+	if (p == WebProt::https_quic && v != HttpVer::http_3)
+	{
+#ifdef _DEBUG
+		std::cout << "Warning: Using QUIC not but using HTTP 3." << std::endl;
+#endif
 	}
 	return true;
 }
@@ -377,11 +384,11 @@ bool lazy::Web::connect(std::string hostname, int port, float waitSec)
 	}
 
 #ifdef _DEBUG
-	if (port == HTTP_PORT && ssl != nullptr)
+	if (port == PORT_HTTP && ssl != nullptr)
 	{
 		cout << "Warning: Using http port (80) but using SSL." << endl;
 	}
-	if (port == HTTPS_PORT && ssl == nullptr)
+	if (port == PORT_HTTPS && ssl == nullptr)
 	{
 		cout << "Warning: Using https port (443) but not using SSL." << endl;
 	}
@@ -707,6 +714,14 @@ std::string lazy::Web::get_ssl_err_str()
 lazy::Web::Mode lazy::Web::get_mode()
 {
 	return mode;
+}
+lazy::HttpVer lazy::Web::get_http_ver()
+{
+	return httpv;
+}
+lazy::WebProt lazy::Web::get_protocol()
+{
+	return prot;
 }
 
 void lazy::Web::close()
@@ -1072,11 +1087,11 @@ int lazy::WebHelper::get_url_port(std::string url)
 	}
 	if (url.find("http://") != string::npos)
 	{
-		return HTTP_PORT;
+		return PORT_HTTP;
 	}
 	else if (url.find("https://") != string::npos)
 	{
-		return HTTPS_PORT;
+		return PORT_HTTPS;
 	}
 #ifdef _DEBUG
 	cout << "Error: Failed to get port from URL." << endl;
@@ -1240,10 +1255,25 @@ bool lazy::WebHelper::send_get_msg(std::string url)
 		return false;
 	}
 	std::string msg;
-	msg += "GET " + WebHelper::get_url_res(url) + " HTTP/1.1\r\n";
+	msg += "GET " + WebHelper::get_url_res(url);
+	if (web->get_http_ver() == HttpVer::http_1_0)
+	{
+		msg += " HTTP/1.0\r\n";
+	}
+	else if (web->get_http_ver() == HttpVer::http_1_1)
+	{
+		msg += " HTTP/1.1\r\n";
+	}
 
 	//Neccessary
-	msg += "Connection: keep-alive\r\n";
+	if (web->get_http_ver() == HttpVer::http_1_0)
+	{
+		msg += "Connection: close\r\n";
+	}
+	else if (web->get_http_ver() == HttpVer::http_1_1)
+	{
+		msg += "Connection: keep-alive\r\n";
+	}
 	msg += "Host: " + web->get_hostname() + "\r\n";
 	msg += "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0\r\n";
 	//Unneccessary, maybe
