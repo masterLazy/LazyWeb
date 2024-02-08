@@ -4,6 +4,9 @@
 * The main header of lazyweb.
 *****************************************************************************/
 
+//Defining for openssl/applink.c
+#define _CRT_SECURE_NO_WARNINGS
+
 //Cpp Standard
 #include <string>
 #include <vector>
@@ -26,6 +29,7 @@
 //Open SSL
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <openssl/applink.c>
 #pragma comment(lib,"libssl.lib")
 #pragma comment(lib,"libcrypto.lib")
 
@@ -99,12 +103,17 @@ namespace lazy
 		std::string recv_path;		//Recv msg save path
 		std::queue<Msg> msg_queue;	//Recv msg queue
 
-		SOCKET sock;		//Self's SOCKET
-		SOCKET cli_sock;
+		//For CLIENT: self's
+		//For SERVER: client's
+		SOCKET sock;
+		SOCKET svr_sock;
 
 		//For CLIENT: Target server addr
 		//For SERVER: Bound addr
 		addrinfo* addr;
+
+		//For SERVER: Server addr
+		addrinfo* cli_addr;
 
 		//For CLIENT: Server host name
 		std::string host;
@@ -126,13 +135,20 @@ namespace lazy
 		bool init(WebProt, HttpVer = HttpVer::http_1_1, bool verify = true);
 
 		//Initialize as SERVER
-		bool init(std::string hostname, int port, WebProt, HttpVer, bool _verify = false, std::string cert_file);
+		bool init(std::string hostname, int port, WebProt, HttpVer = HttpVer::http_1_1,
+			std::string certificate_file = "", std::string private_key_file = "");
 
 		//Set path of received file
 		bool set_recv_path(std::string);
 
+		//For CLIENT: get the server host's name
+		std::string get_hostname();
 		//Get self's SOCKET
 		SOCKET get_socket();
+		//Get IPv4 address string
+		//For CLIENT: get server's 
+		//For SERVER: get client's
+		std::string get_ipv4();
 		//Get WSA error code
 		static int get_err();
 		//Get WSA error string
@@ -153,15 +169,15 @@ namespace lazy
 		bool connect(std::string hostname, int port, float waitSec = 3.0);
 		//For CLIENT: connect to the server
 		bool connect(std::string url, float waitSec = 3.0);
-		//For CLIENT: get the server host's name
-		std::string get_hostname();
 
 		//For SERVER: start to listen connection
-		bool listen();
+		bool listen(int backlog = 5);
+		//For SERVER: if available connection is empty [if could accept()]
+		bool accept_empty();
 		//For SERVER: accept connection
 		bool accept();
-		//For SERVER: close connection
-		bool close_connect();
+		//For SERVER: close client connection
+		bool close_client();
 
 		//Close socket
 		void close();
@@ -175,9 +191,9 @@ namespace lazy
 		bool msg_empty();
 		//Clear the read queue
 		void msg_clear();
-		//Read a msg for read queue
+		//Read a msg in queue
 		Msg read();
-		//Peek a msg for read queue
+		//Peek a msg in queue but not pop it
 		Msg peek();
 	};
 }

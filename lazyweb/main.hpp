@@ -44,7 +44,7 @@ void lazy::Web::recv_loop(Web& web)
 			{
 				res = SSL_read(web.ssl, buf, WEB_IO_BUFSIZE);
 			}
-			//TCP
+			//WinSock
 			else
 			{
 				res = recv(web.sock, buf, WEB_IO_BUFSIZE, NULL);
@@ -71,130 +71,23 @@ void lazy::Web::recv_loop(Web& web)
 				}
 				timer = clock();
 			}
-			//Recv complete
-			if (recving == true && clock() - timer > WEB_RECV_OVERTIME)
-			{
-				recving = false;
-				of.close();
+		}
+		//Recv complete
+		if (recving == true && (clock() - timer > WEB_RECV_OVERTIME || !web.sg_recv))
+		{
+			recving = false;
+			of.close();
 
-				Msg msg;
-				msg.load_from_file(filename);
-				web.msg_queue.push(msg);
-				cout << "[recv_thread] Recv completed." << endl;
-			}
+			Msg msg;
+			msg.load_from_file(filename);
+			web.msg_queue.push(msg);
+			cout << "[recv_thread] Recv completed." << endl;
 		}
 	}
 	delete buf;
 	if (of.is_open())of.close();
 
 	web.sg_end_ok = true;
-}
-
-bool lazy::Web::init_winsock_c()
-{
-	int res;
-	//Startup WSA
-	res = WSAStartup(MAKEWORD(2, 2), &wd);
-	if (res != 0)
-	{
-#ifdef _DEBUG
-		std::cout << "Error: Failed to startup WSA." << std::endl;
-#endif
-		return false;
-	}
-
-
-	//Create SOCKET
-	if (prot != WebProt::https_quic)
-	{
-		sock = socket(WEB_ADDR_FAMILY, SOCK_STREAM, 0);//TCP
-	}
-	else
-	{
-		sock = socket(WEB_ADDR_FAMILY, SOCK_DGRAM, 0);//UDP
-	}
-	if (sock == -1)
-	{
-#ifdef _DEBUG
-		std::cout << "Error: Failed to create SOCKET: " << get_err_str() << "." << std::endl;
-#endif
-		close();
-		return false;
-	}
-	//Set SOCKET non-blocking
-	u_long ul = 1;
-	ioctlsocket(sock, FIONBIO, &ul);
-
-	//
-	if (ssl != nullptr)SSL_set_fd(ssl, sock);
-
-
-	//Create thread
-	recv_td = new std::thread(recv_loop, std::ref(*this));
-	recv_td->detach();
-
-	return true;
-}
-bool lazy::Web::init_winsock_s(std::string hostname, int port)
-{
-	int res;
-	//Startup WSA
-	res = WSAStartup(MAKEWORD(2, 2), &wd);
-	if (res != 0)
-	{
-#ifdef _DEBUG
-		std::cout << "Error: Failed to startup WSA." << std::endl;
-#endif
-		return false;
-	}
-
-
-	//Create SOCKET
-	sock = socket(WEB_ADDR_FAMILY, SOCK_STREAM, 0);
-	if (sock == -1)
-	{
-#ifdef _DEBUG
-		std::cout << "Error: Failed to create SOCKET: " << get_err_str() << "." << std::endl;
-#endif
-		close();
-		return false;
-	}
-	//Set SOCKET non-blocking
-	u_long ul = 1;
-	ioctlsocket(sock, FIONBIO, &ul);
-
-
-	//Set addrinfo
-	addrinfo hints, * result;
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = WEB_ADDR_FAMILY;
-	hints.ai_socktype = SOCK_STREAM;//TCP
-	//Set port
-	string ports = to_string(port);
-	if (getaddrinfo(hostname.c_str(), ports.c_str(), &hints, &result) != 0)
-	{
-#ifdef _DEBUG
-		cout << "Error: Failed to connect: getaddrinfo() failed." << endl;
-#endif
-		return false;
-	}
-	addr = result;
-
-	//Bind addr(Name socket)
-	if (bind(sock, addr->ai_addr, addr->ai_addrlen) == -1)
-	{
-		close();
-#ifdef _DEBUG
-		std::cout << "Error: Failed to bind SOCKET: " << get_err_str() << "." << std::endl;
-#endif
-		return false;
-	}
-
-	//Create thread
-	recv_td = new std::thread(recv_loop, std::ref(*this));
-	recv_td->detach();
-
-	return true;
 }
 
 bool lazy::Web::load_def_ca(SSL_CTX* ctx)
@@ -271,6 +164,77 @@ bool lazy::Web::check_par_ok(WebProt p, HttpVer v)
 	return true;
 }
 
+
+bool lazy::Web::set_recv_path(std::string path)
+{
+	//Format
+	while (path.find('\\') != std::string::npos)
+	{
+		path[path.find('\\')] = '/';
+	}
+	if (path.back() != '/')
+	{
+		path.push_back('/');
+	}
+
+	bool res = CreateDirectoryA(path.c_str(), NULL);
+	if (!res && GetLastError() != ERROR_ALREADY_EXISTS)
+	{
+#ifdef _DEBUG
+		std::cout << "Failed to set recv path: failed to create directory" << std::endl;
+#endif
+		return false;
+	}
+	recv_path = path;
+	return true;
+}
+
+//Client
+bool lazy::Web::init_winsock_c()
+{
+	int res;
+	//Startup WSA
+	res = WSAStartup(MAKEWORD(2, 2), &wd);
+	if (res != 0)
+	{
+#ifdef _DEBUG
+		std::cout << "Error: Failed to startup WSA." << std::endl;
+#endif
+		return false;
+	}
+
+
+	//Create SOCKET
+	if (prot != WebProt::https_quic)
+	{
+		sock = socket(WEB_ADDR_FAMILY, SOCK_STREAM, 0);//TCP
+	}
+	else
+	{
+		sock = socket(WEB_ADDR_FAMILY, SOCK_DGRAM, 0);//UDP
+	}
+	if (sock == -1)
+	{
+#ifdef _DEBUG
+		std::cout << "Error: Failed to create SOCKET: " << get_err_str() << "." << std::endl;
+#endif
+		close();
+		return false;
+	}
+	//Set SOCKET non-blocking
+	u_long ul = 1;
+	ioctlsocket(sock, FIONBIO, &ul);
+
+	//Link
+	if (ssl != nullptr)SSL_set_fd(ssl, sock);
+
+
+	//Create thread
+	recv_td = new std::thread(recv_loop, std::ref(*this));
+	recv_td->detach();
+
+	return true;
+}
 bool lazy::Web::init(lazy::WebProt p, lazy::HttpVer v, bool _verify)
 {
 	using namespace std;
@@ -330,79 +294,11 @@ bool lazy::Web::init(lazy::WebProt p, lazy::HttpVer v, bool _verify)
 		SSL_set_verify(ssl, verify ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, NULL);
 	}
 
-	bool res = init_winsock_c();
-	if (!res)return false;
+	bool bRes = init_winsock_c();
+	if (!bRes)return false;
 	mode = Mode::client;
 	return true;
 }
-bool lazy::Web::init(std::string ip, int port, lazy::WebProt p, lazy::HttpVer v, bool _verify, std::string cert_file)
-{
-	using namespace std;
-	//If parameters are valid
-	if (!check_par_ok(p, v))
-	{
-#ifdef _DEBUG
-		cout << "Error: Failed to initialize: Web protocol doesn't match HTTP version." << endl;
-#endif
-		return false;
-	}
-	if (p == WebProt::https_quic || v == HttpVer::http_3)
-	{
-#ifdef _DEBUG
-		cout << "Error: Failed to initialize: Server doesn't support QUIC or HTTP 3" << endl;
-#endif
-		return false;
-	}
-	verify = _verify;
-	prot = p;
-	v = httpv;
-
-	int res;
-	//Startup SSL
-	if (p == WebProt::https)
-	{
-		OpenSSL_add_all_algorithms();
-		SSL_library_init();
-		SSL_load_error_strings();
-		SSLeay_add_ssl_algorithms();
-		//Create CTX
-		ctx = SSL_CTX_new(TLS_server_method());
-		//Set verify method (non-verify)
-		SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
-		//Create SSL
-		ssl = SSL_new(ctx);
-	}
-
-	bool res = init_winsock_s(ip, port);
-	if (!res)return false;
-	mode = Mode::server;
-	return true;
-}
-
-bool lazy::Web::set_recv_path(std::string path)
-{
-	//Format
-	while (path.find('\\') != std::string::npos)
-	{
-		path[path.find('\\')] = '/';
-	}
-	if (path.back() != '/')
-	{
-		path.push_back('/');
-	}
-
-	bool res = CreateDirectoryA(path.c_str(), NULL);
-	if (!res && GetLastError() != ERROR_ALREADY_EXISTS)
-	{
-#ifdef _DEBUG
-		std::cout << "Failed to set recv path: failed to create directory" << std::endl;
-#endif
-		return false;
-	}
-	recv_path = path;
-	return true;
-}
-
 bool lazy::Web::connect(std::string hostname, int port, float waitSec)
 {
 	using namespace std;
@@ -494,7 +390,7 @@ bool lazy::Web::connect(std::string hostname, int port, float waitSec)
 
 
 	clock_t timer = clock();
-	//Connect (winsock)
+	//Connect (WinSock)
 	while (clock() - timer <= waitSec * 1000)
 	{
 		res = ::connect(sock, addr->ai_addr, addr->ai_addrlen);
@@ -536,9 +432,7 @@ bool lazy::Web::connect(std::string hostname, int port, float waitSec)
 #endif
 		}
 
-		//Set SSL connection state
 		SSL_set_connect_state(ssl);
-
 		while (clock() - timer <= waitSec * 1000)
 		{
 			res = SSL_connect(ssl);
@@ -595,9 +489,273 @@ bool lazy::Web::connect(std::string url, float waitSec)
 	return connect(WebHelper::get_url_host(url), WebHelper::get_url_port(url), waitSec);
 }
 
-std::string lazy::Web::get_hostname()
+//Server
+bool lazy::Web::init_winsock_s(std::string hostname, int port)
 {
-	return host;
+	using namespace std;
+	int res;
+	//Startup WSA
+	res = WSAStartup(MAKEWORD(2, 2), &wd);
+	if (res != 0)
+	{
+#ifdef _DEBUG
+		std::cout << "Error: Failed to startup WSA." << std::endl;
+#endif
+		return false;
+	}
+
+
+	//Create SOCKET
+	svr_sock = socket(WEB_ADDR_FAMILY, SOCK_STREAM, 0);
+	if (sock == -1)
+	{
+#ifdef _DEBUG
+		std::cout << "Error: Failed to create SOCKET: " << get_err_str() << "." << std::endl;
+#endif
+		close();
+		return false;
+	}
+	//Set SOCKET non-blocking
+	u_long ul = 1;
+	ioctlsocket(svr_sock, FIONBIO, &ul);
+
+
+	//Set addrinfo
+	addrinfo hints, * result;
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = WEB_ADDR_FAMILY;
+	hints.ai_socktype = SOCK_STREAM;//TCP
+	//Set port
+	string ports = to_string(port);
+	if (getaddrinfo(hostname.c_str(), ports.c_str(), &hints, &result) != 0)
+	{
+#ifdef _DEBUG
+		cout << "Error: Failed to connect: getaddrinfo() failed." << endl;
+#endif
+		return false;
+	}
+	addr = result;
+
+	//Bind addr(Name socket)
+	if (bind(svr_sock, addr->ai_addr, addr->ai_addrlen) == -1)
+	{
+		close();
+#ifdef _DEBUG
+		std::cout << "Error: Failed to bind SOCKET: " << get_err_str() << "." << std::endl;
+#endif
+		return false;
+	}
+
+	//Create thread
+	recv_td = new std::thread(recv_loop, std::ref(*this));
+	recv_td->detach();
+
+	return true;
+}
+bool lazy::Web::init(std::string ip, int port, lazy::WebProt p, lazy::HttpVer v, std::string cert, std::string key)
+{
+	using namespace std;
+	//If parameters are valid
+	if (!check_par_ok(p, v))
+	{
+#ifdef _DEBUG
+		cout << "Error: Failed to initialize: Web protocol doesn't match HTTP version." << endl;
+#endif
+		return false;
+	}
+	if (p == WebProt::https_quic || v == HttpVer::http_3)
+	{
+#ifdef _DEBUG
+		cout << "Error: Failed to initialize: Server doesn't support QUIC or HTTP 3." << endl;
+#endif
+		return false;
+	}
+	if (!cert.empty() && key.empty())
+	{
+#ifdef _DEBUG
+		cout << "Error: Failed to initialize: Not set private key file." << endl;
+#endif
+		return false;
+	}
+	if (cert.empty() && !key.empty())
+	{
+#ifdef _DEBUG
+		cout << "Error: Failed to initialize: Not set certificate file." << endl;
+#endif
+		return false;
+	}
+	verify = !cert.empty();
+	prot = p;
+	v = httpv;
+
+	int res;
+	//Startup SSL
+	if (p == WebProt::https)
+	{
+		OpenSSL_add_all_algorithms();
+		SSL_library_init();
+		SSL_load_error_strings();
+		SSLeay_add_ssl_algorithms();
+		//Create CTX
+		ctx = SSL_CTX_new(TLS_server_method());
+		//Set verify method
+		SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
+		//Create SSL
+		ssl = SSL_new(ctx);
+		SSL_set_verify(ssl, SSL_VERIFY_NONE, NULL);
+
+		if (verify)
+		{
+			if (SSL_CTX_use_certificate_file(ctx, cert.c_str(), SSL_FILETYPE_PEM) != 1)
+			{
+#ifdef _DEBUG
+				cout << "Error: Failed to initialize: Failed to set certificate file." << endl;
+#endif
+				return false;
+			}
+			if (SSL_CTX_use_PrivateKey_file(ctx, key.c_str(), SSL_FILETYPE_PEM) != 1)
+			{
+#ifdef _DEBUG
+				cout << "Error: Failed to initialize: Failed to set private key file." << endl;
+#endif
+				return false;
+			}
+			if (SSL_CTX_check_private_key(ctx) != 1)
+			{
+#ifdef _DEBUG
+				cout << "Error: Failed to initialize: Failed to check certificate file and private key file." << endl;
+#endif
+				return false;
+			}
+		}
+	}
+
+	bool bRes = init_winsock_s(ip, port);
+	if (!bRes)return false;
+	mode = Mode::server;
+	return true;
+}
+bool lazy::Web::listen(int backlog)
+{
+	using namespace std;
+	if (mode != Mode::server)
+	{
+#ifdef _DEBUG
+		if (mode == Mode::undefined)
+		{
+			cout << "Error: Failed to connect: Not initialized." << endl;
+		}
+		else
+		{
+			cout << "Error: Failed to connect: Should be in server mode." << endl;
+		}
+#endif
+		return false;
+	}
+
+	if (::listen(svr_sock, backlog) != 0)
+	{
+#ifdef _DEBUG
+		cout << "Error: Failed to listen. "
+			<< get_err_str() << "." << endl;
+#endif
+		return false;
+	}
+	return true;
+}
+bool lazy::Web::accept_empty()
+{
+	fd_set fds;
+	FD_ZERO(&fds);
+	FD_SET(svr_sock, &fds);
+	timeval timeout = { 0 };
+	int res = select(NULL, &fds, NULL, NULL, &timeout);
+	if (res == SOCKET_ERROR)
+	{
+#ifdef _DEBUG
+		std::cout << "Error: SOCKET error." << std::endl;
+#endif
+		return false;
+	}
+	return res == 0;
+}
+bool lazy::Web::accept()
+{
+	//Connect (WinSock)
+	sockaddr_in _addr = { 0 };
+	int len = sizeof(_addr);
+	sock = ::accept(svr_sock, (sockaddr*)&_addr, &len);
+	if (sock == -1)
+	{
+#ifdef _DEBUG
+		std::cout << "Error: Failed to accept connection. " <<
+			get_err_str() << std::endl;
+#endif
+		return false;
+	}
+
+	//Connect (SSL)
+	if (ssl != nullptr)
+	{
+		SSL_set_fd(ssl, sock);
+		SSL_set_accept_state(ssl);
+		int res = 0;
+		while (res == -1)res = SSL_accept(ssl);
+		if (res != 1)
+		{
+			if (SSL_get_error(ssl, res) == SSL_ERROR_SYSCALL)
+			{
+				std::cout << "Error: Failed to accept connection. " <<
+					get_err_str() << std::endl;
+			}
+			else
+			{
+#ifdef _DEBUG
+				std::cout << "Error: Failed to accept connection: SSL error. " <<
+					get_ssl_err_str() << std::endl;
+#endif
+			}
+			//close_client();
+			//return false;
+		}
+	}
+
+	//sockaddr->addrinfo
+	char cliIP[INET_ADDRSTRLEN] = { 0 };
+	inet_ntop(WEB_ADDR_FAMILY, &_addr.sin_addr, cliIP, INET_ADDRSTRLEN);
+
+	addrinfo hints, * result;
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = WEB_ADDR_FAMILY;
+	hints.ai_socktype = SOCK_STREAM;//TCP
+
+	if (getaddrinfo(cliIP, NULL, &hints, &result) != 0)
+	{
+#ifdef _DEBUG
+		std::cout << "Error: Failed to accept connection: getaddrinfo() failed." << std::endl;
+#endif
+		close_client();
+		return false;
+	}
+	cli_addr = result;
+
+
+	sg_recv = true;
+	return true;
+}
+bool lazy::Web::close_client()
+{
+	sg_recv = false;
+	freeaddrinfo(cli_addr);
+	if (::closesocket(sock) != 0)
+	{
+#ifdef _DEBUG
+		std::cout << "Error: Failed to close client connection: Failed to get addrinfo. " <<
+			get_err_str() << std::endl;
+#endif
+		return false;
+	}
+	return true;
 }
 
 bool lazy::Web::write(std::string msg)
@@ -653,7 +811,7 @@ bool lazy::Web::write(std::string msg)
 
 			default:
 #ifdef _DEBUG
-				cout << "Error: Failed to write. SSL_get_error() returned " <<
+				cout << "Error: Failed to write: " <<
 					get_ssl_err_str() << "." << endl;
 #endif
 				return false;
@@ -708,9 +866,25 @@ lazy::Msg lazy::Web::peek()
 	return msg_queue.back();
 }
 
+std::string lazy::Web::get_hostname()
+{
+	return host;
+}
 SOCKET lazy::Web::get_socket()
 {
 	return sock;
+}
+std::string lazy::Web::get_ipv4()
+{
+	addrinfo* info;
+	if (mode == Mode::client)info = addr;
+	else if (mode == Mode::server)info = cli_addr;
+	else return "";
+
+	if (info == NULL)return "";
+	char str[INET_ADDRSTRLEN] = { 0 };
+	inet_ntop(info->ai_family, &((sockaddr_in*)info->ai_addr)->sin_addr, str, INET_ADDRSTRLEN);
+	return str;
 }
 int lazy::Web::get_err()
 {
@@ -767,8 +941,17 @@ lazy::WebProt lazy::Web::get_protocol()
 void lazy::Web::close()
 {
 	sg_recv = false;
-	closesocket(sock);
+	if (mode == Mode::server)
+	{
+		close_client();
+		closesocket(svr_sock);
+	}
+	else
+	{
+		closesocket(sock);
+	}
 	WSACleanup();
+	freeaddrinfo(addr);
 	if (ssl != nullptr)
 	{
 		SSL_shutdown(ssl);
