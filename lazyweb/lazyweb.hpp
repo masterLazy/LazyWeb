@@ -112,6 +112,7 @@ namespace lazy
 		Mode mode = Mode::undefined;
 
 		bool init_winsock_c();
+		bool init_winsock_s(std::string, int);
 
 		bool load_def_ca(SSL_CTX* ctx);
 		bool check_par_ok(WebProt, HttpVer);
@@ -125,7 +126,7 @@ namespace lazy
 		bool init(WebProt, HttpVer = HttpVer::http_1_1, bool verify = true);
 
 		//Initialize as SERVER
-		bool init(std::string ip, int port, bool ssl);
+		bool init(std::string hostname, int port, WebProt, HttpVer, bool _verify = false, std::string cert_file);
 
 		//Set path of received file
 		bool set_recv_path(std::string);

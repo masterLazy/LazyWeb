@@ -133,7 +133,67 @@ bool lazy::Web::init_winsock_c()
 	recv_td = new std::thread(recv_loop, std::ref(*this));
 	recv_td->detach();
 
-	mode = Mode::client;
+	return true;
+}
+bool lazy::Web::init_winsock_s(std::string hostname, int port)
+{
+	int res;
+	//Startup WSA
+	res = WSAStartup(MAKEWORD(2, 2), &wd);
+	if (res != 0)
+	{
+#ifdef _DEBUG
+		std::cout << "Error: Failed to startup WSA." << std::endl;
+#endif
+		return false;
+	}
+
+
+	//Create SOCKET
+	sock = socket(WEB_ADDR_FAMILY, SOCK_STREAM, 0);
+	if (sock == -1)
+	{
+#ifdef _DEBUG
+		std::cout << "Error: Failed to create SOCKET: " << get_err_str() << "." << std::endl;
+#endif
+		close();
+		return false;
+	}
+	//Set SOCKET non-blocking
+	u_long ul = 1;
+	ioctlsocket(sock, FIONBIO, &ul);
+
+
+	//Set addrinfo
+	addrinfo hints, * result;
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = WEB_ADDR_FAMILY;
+	hints.ai_socktype = SOCK_STREAM;//TCP
+	//Set port
+	string ports = to_string(port);
+	if (getaddrinfo(hostname.c_str(), ports.c_str(), &hints, &result) != 0)
+	{
+#ifdef _DEBUG
+		cout << "Error: Failed to connect: getaddrinfo() failed." << endl;
+#endif
+		return false;
+	}
+	addr = result;
+
+	//Bind addr(Name socket)
+	if (bind(sock, addr->ai_addr, addr->ai_addrlen) == -1)
+	{
+		close();
+#ifdef _DEBUG
+		std::cout << "Error: Failed to bind SOCKET: " << get_err_str() << "." << std::endl;
+#endif
+		return false;
+	}
+
+	//Create thread
+	recv_td = new std::thread(recv_loop, std::ref(*this));
+	recv_td->detach();
+
 	return true;
 }
 
@@ -211,11 +271,11 @@ bool lazy::Web::check_par_ok(WebProt p, HttpVer v)
 	return true;
 }
 
-bool lazy::Web::init(lazy::WebProt p, lazy::HttpVer hv, bool _verify)
+bool lazy::Web::init(lazy::WebProt p, lazy::HttpVer v, bool _verify)
 {
 	using namespace std;
 	//If parameters are valid
-	if (!check_par_ok(p, hv))
+	if (!check_par_ok(p, v))
 	{
 #ifdef _DEBUG
 		cout << "Error: Failed to initialize: Web protocol does not match HTTP version." << endl;
@@ -224,7 +284,7 @@ bool lazy::Web::init(lazy::WebProt p, lazy::HttpVer hv, bool _verify)
 	}
 	verify = _verify;
 	prot = p;
-	hv = httpv;
+	v = httpv;
 
 	int res;
 	//Startup SSL
@@ -270,13 +330,36 @@ bool lazy::Web::init(lazy::WebProt p, lazy::HttpVer hv, bool _verify)
 		SSL_set_verify(ssl, verify ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, NULL);
 	}
 
-	return init_winsock_c();
+	bool res = init_winsock_c();
+	if (!res)return false;
+	mode = Mode::client;
+	return true;
 }
-bool lazy::Web::init(std::string ip, int port, bool startup_ssl)
+bool lazy::Web::init(std::string ip, int port, lazy::WebProt p, lazy::HttpVer v, bool _verify, std::string cert_file)
 {
+	using namespace std;
+	//If parameters are valid
+	if (!check_par_ok(p, v))
+	{
+#ifdef _DEBUG
+		cout << "Error: Failed to initialize: Web protocol doesn't match HTTP version." << endl;
+#endif
+		return false;
+	}
+	if (p == WebProt::https_quic || v == HttpVer::http_3)
+	{
+#ifdef _DEBUG
+		cout << "Error: Failed to initialize: Server doesn't support QUIC or HTTP 3" << endl;
+#endif
+		return false;
+	}
+	verify = _verify;
+	prot = p;
+	v = httpv;
+
 	int res;
 	//Startup SSL
-	if (startup_ssl)
+	if (p == WebProt::https)
 	{
 		OpenSSL_add_all_algorithms();
 		SSL_library_init();
@@ -290,51 +373,8 @@ bool lazy::Web::init(std::string ip, int port, bool startup_ssl)
 		ssl = SSL_new(ctx);
 	}
 
-
-	//Startup WSA
-	res = WSAStartup(MAKEWORD(2, 2), &wd);
-	if (res != 0)
-	{
-#ifdef _DEBUG
-		std::cout << "Error: Failed to startup WSA." << std::endl;
-#endif
-		return false;
-	}
-
-
-	//Create SOCKET
-	sock = socket(WEB_ADDR_FAMILY, SOCK_STREAM, 0);
-	if (sock == -1)
-	{
-#ifdef _DEBUG
-		std::cout << "Error: Failed to create SOCKET: " << get_err_str() << "." << std::endl;
-#endif
-		close();
-		return false;
-	}
-	//Set SOCKET non-blocking
-	u_long ul = 1;
-	ioctlsocket(sock, FIONBIO, &ul);
-
-
-	//Bind addr(Name socket)
-	/*memset(&addr, 0, sizeof(addr));
-	addr.sin_family = AF_INET;
-	addr.sin_port = htons(port);
-	inet_pton(AF_INET, ip.c_str(), &addr.sin_addr);
-	if (bind(sock, (sockaddr*)&addr, sizeof(addr)) == -1)
-	{
-		close();
-#ifdef _DEBUG
-		std::cout << "Error: Failed to bind SOCKET: " << get_error_str() << "." << std::endl;
-#endif
-		return false;
-	}*/
-
-	//Create thread
-	recv_td = new std::thread(recv_loop, std::ref(*this));
-	recv_td->detach();
-
+	bool res = init_winsock_s(ip, port);
+	if (!res)return false;
 	mode = Mode::server;
 	return true;
 }
