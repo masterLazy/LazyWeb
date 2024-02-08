@@ -33,7 +33,7 @@ int main()
 	//Initialize lazy::web
 	Web web;
 	//Initializate
-	web.init(true);
+	web.init(WebProt::https, HttpVer::http_1_1);
 	//Connect to the server
 	web.connect(url);
 
