@@ -55,6 +55,19 @@ namespace lazy
 	//AF_INET6:	IPv6
 	const int WEB_ADDR_FAMILY = AF_INET;
 
+	enum class WebProt
+	{
+		http,		//HTTP
+		https,		//HTTP + TLS/SSL
+		https_quic	//HTTP + QUIC
+	};
+	enum class HttpVer
+	{
+		http_1_0,	//HTTP 1.0 (old)
+		http_1_1,	//HTTP 1.1 (common)
+		http_3		//HTTP 3 (UDP)
+	};
+
 	class Web
 	{
 	public:
@@ -65,11 +78,13 @@ namespace lazy
 	private:
 		WSADATA wd;
 
+		WebProt prot;
+		HttpVer httpv;
+
 		//SSL
 		SSL* ssl = nullptr;
 		SSL_CTX* ctx = nullptr;
-		bool ssl_verify;
-		bool quic;	//If use QUIC protocol
+		bool verify;
 
 		//Recv thread
 		std::thread* recv_td;
@@ -95,8 +110,8 @@ namespace lazy
 		Mode mode = Mode::undefined;
 
 		bool init_winsock_c();
-
 		bool load_def_ca(SSL_CTX* ctx);
+		bool check_par_ok(WebProt, HttpVer);
 
 
 	public:
@@ -104,8 +119,7 @@ namespace lazy
 		~Web();
 
 		//Initialize as CLIENT
-		//SSL verify mode: SSL_VERIFY_NONE
-		bool init(bool ssl, bool ssl_verify = true, bool quic = false);
+		bool init(WebProt, HttpVer = HttpVer::http_1_1, bool verify = true);
 
 		//Initialize as SERVER
 		bool init(std::string ip, int port, bool ssl);

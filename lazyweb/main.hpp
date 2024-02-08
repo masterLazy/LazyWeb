@@ -105,7 +105,14 @@ bool lazy::Web::init_winsock_c()
 
 
 	//Create SOCKET
-	sock = socket(WEB_ADDR_FAMILY, quic ? SOCK_DGRAM : SOCK_STREAM, 0);
+	if (prot != WebProt::https_quic)
+	{
+		sock = socket(WEB_ADDR_FAMILY, SOCK_STREAM, 0);//TCP
+	}
+	else
+	{
+		sock = socket(WEB_ADDR_FAMILY, SOCK_DGRAM, 0);//UDP
+	}
 	if (sock == -1)
 	{
 #ifdef _DEBUG
@@ -187,22 +194,48 @@ bool lazy::Web::load_def_ca(SSL_CTX* ctx)
 	CertCloseStore(hStore, 0);
 	return true;
 }
+bool lazy::Web::check_par_ok(WebProt p, HttpVer v)
+{
+	if ((p == WebProt::http || p == WebProt::https) &&
+		v == HttpVer::http_3)
+	{
+		return false;
+	}
+	return true;
+}
 
-bool lazy::Web::init(bool _ssl, bool verify, bool _quic)
+bool lazy::Web::init(lazy::WebProt p, lazy::HttpVer hv, bool _verify)
 {
 	using namespace std;
-	int res;
-	quic = _quic;
-	//Startup SSL
-	if (_ssl)
+	//If parameters are valid
+	if (!check_par_ok(p, hv))
 	{
-		ssl_verify = verify;
+#ifdef _DEBUG
+		cout << "Error: Failed to initialize: Web protocol does not match HTTP version." << endl;
+#endif
+		return false;
+	}
+	verify = _verify;
+	prot = p;
+	hv = httpv;
+
+	int res;
+	//Startup SSL
+	if (p == WebProt::https || p == WebProt::https_quic)
+	{
 		OpenSSL_add_all_algorithms();
 		SSL_library_init();
 		SSL_load_error_strings();
 		SSLeay_add_ssl_algorithms();
 		//Create CTX
-		ctx = SSL_CTX_new(quic ? OSSL_QUIC_client_method() : TLS_client_method());
+		if (p == WebProt::https)
+		{
+			ctx = SSL_CTX_new(TLS_client_method());
+		}
+		else if (p == WebProt::https_quic)
+		{
+			ctx = SSL_CTX_new(OSSL_QUIC_client_method());
+		}
 		if (ctx == NULL)
 		{
 #ifdef _DEBUG
@@ -228,10 +261,6 @@ bool lazy::Web::init(bool _ssl, bool verify, bool _quic)
 			return false;
 		}
 		SSL_set_verify(ssl, verify ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, NULL);
-	}
-	else
-	{
-		ssl_verify = false;
 	}
 
 	return init_winsock_c();
@@ -364,8 +393,15 @@ bool lazy::Web::connect(std::string hostname, int port, float waitSec)
 	addrinfo hints, * result;
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = WEB_ADDR_FAMILY;
-	hints.ai_socktype = quic ? SOCK_DGRAM : SOCK_STREAM;
-
+	if (prot != WebProt::https_quic)
+	{
+		hints.ai_socktype = SOCK_STREAM;//TCP
+	}
+	else
+	{
+		hints.ai_socktype = SOCK_DGRAM;//UDP
+	}
+	//Set port
 	string ports = to_string(port);
 	if (getaddrinfo(hostname.c_str(), ports.c_str(), &hints, &result) != 0)
 	{
@@ -376,9 +412,42 @@ bool lazy::Web::connect(std::string hostname, int port, float waitSec)
 	}
 	addr = result;
 
+	//QUIC
+	if (prot == WebProt::https_quic)
+	{
+		//Set ALPN
+		//unsigned char alpn[] = { 2, 'h', '3' };
+		string alpn;
+		switch (httpv)
+		{
+		case lazy::HttpVer::http_1_0:
+			alpn = "HTTP/1.0";
+			break;
+		case lazy::HttpVer::http_1_1:
+			alpn = "HTTP/1.1";
+			break;
+		case lazy::HttpVer::http_3:
+			alpn = "h3";
+			break;
+		}
+		alpn.insert(alpn.begin(), alpn.size());
+		if (SSL_set_alpn_protos(ssl, (unsigned char*)alpn.c_str(), alpn.size()) != 0)
+		{
+			cout << "Error: Failed to init: Failed to set ALPN." << endl;
+			return -1;
+		}
+		//Set peer addr
+		BIO_ADDR* peer_addr = (BIO_ADDR*)(addr->ai_addr);
+		if (SSL_set1_initial_peer_addr(ssl, peer_addr) == 0)
+		{
+			cout << "Error: Failed to set the initial peer address." << endl;
+			return -1;
+		}
+	}
+
 
 	clock_t timer = clock();
-	//Connect (TCP)
+	//Connect (winsock)
 	while (clock() - timer <= waitSec * 1000)
 	{
 		res = ::connect(sock, addr->ai_addr, addr->ai_addrlen);
@@ -434,33 +503,28 @@ bool lazy::Web::connect(std::string hostname, int port, float waitSec)
 				break;
 			}
 		}
-		if (clock() - timer > waitSec * 1000)
+		if (err != SSL_ERROR_NONE)
 		{
 #ifdef _DEBUG
-			cout << "Error: Failed to connect: SSL connection overtime. "
-				<< get_err_str() << "." << endl;
-#endif
-			return false;
-		}
-		else if (err != SSL_ERROR_NONE)
-		{
-#ifdef _DEBUG
+			cout << "Error: Failed to connect. ";
+			if (clock() - timer > waitSec * 1000)
+			{
+				cout << "SSL connection overtime. ";
+			}
 			if (err == SSL_ERROR_SYSCALL)
 			{
-				cout << "Error: Failed to connect. "
-					<< get_err_str() << get_ssl_err_str() << "." << endl;
+				cout << get_err_str() << get_ssl_err_str() << "." << endl;
 			}
 			else
 			{
-				cout << "Error: Failed to connect. "
-					<< get_ssl_err_str() << "." << endl;
+				cout << get_ssl_err_str() << "." << endl;
 			}
 #endif
 			return false;
 		}
 
 		//Verify
-		if (ssl_verify)
+		if (verify)
 		{
 			if (SSL_get_verify_result(ssl) != X509_V_OK)
 			{
@@ -1194,7 +1258,14 @@ bool lazy::WebHelper::send_get_msg(std::string url)
 lazy::Msg lazy::WebHelper::auto_get(std::string url)
 {
 	Web web;
-	web.init(url.find("https") != std::string::npos);
+	if (url.find("https") != std::string::npos)
+	{
+		web.init(WebProt::https, HttpVer::http_1_1, true);
+	}
+	else
+	{
+		web.init(WebProt::http, HttpVer::http_1_1, false);
+	}
 	web.connect(url);
 
 	WebHelper(web).send_get_msg(url);
