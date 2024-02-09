@@ -13,11 +13,9 @@
 #include <queue>
 #include <regex>
 #include <thread>
+#include <iostream>
 #include <fstream>
 #include <ctime>
-#ifdef _DEBUG
-#include <iostream>
-#endif
 
 //Windows API
 #define _WINSOCK_DEPRECATED_NO_WARNINGS

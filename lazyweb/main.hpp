@@ -62,7 +62,9 @@ void lazy::Web::recv_loop(Web& web)
 
 					if (of.is_open())of.close();
 					of.open(filename, ios::binary);
+#ifdef _DEBUG
 					cout << "[recv_thread] Recv begin." << endl;
+#endif
 				}
 				string temp(buf);
 				for (int i = 0; i < res; i++)
@@ -81,12 +83,13 @@ void lazy::Web::recv_loop(Web& web)
 			Msg msg;
 			msg.load_from_file(filename);
 			web.msg_queue.push(msg);
+#ifdef _DEBUG
 			cout << "[recv_thread] Recv completed." << endl;
+#endif
 		}
 	}
 	delete buf;
 	if (of.is_open())of.close();
-
 	web.sg_end_ok = true;
 }
 
@@ -997,15 +1000,16 @@ bool lazy::Msg::analysis()
 	while (true)
 	{
 		//Analysis one line
-		header.push_back({
-			msg.substr(i, msg.find(": ", i) - i),
-			msg.substr(msg.find(": ", i) + 2,
-			(msg.find("; ", i) == string::npos ? msg.find("\r\n",i) : min(msg.find("\r\n",i),msg.find("; ",i)))
-			- (msg.find(": ", i) + 2))
-			});
+		string key = msg.substr(i, msg.find(": ", i) - i);
+		string value = msg.substr(msg.find(": ", i) + 2, msg.find("\r\n", i) - (msg.find(": ", i) + 2));
+		header.push_back({ key, value });
 
-		if (msg.find("\r\n\r\n") == msg.find("\r\n", i))break;
+		if (msg.find("\r\n\r\n") == msg.find("\r\n", i))
+		{
+			break;
+		}
 		i = msg.find("\r\n", i) + 2;
+
 	}
 
 	//Parameters
@@ -1036,35 +1040,106 @@ bool lazy::Msg::analysis()
 
 
 	//Analysis msg body
-	char* msg_c;
-	size_t size;
-	get_str(&msg_c, &size);
-
-	//Check if there is body
-	i = msg.find("\r\n\r\n") + 4;
-	if (size - i != 0)
+	if (get_header("Content-Type").find("multipart/form-data") != string::npos)
 	{
-		//Save body to file
-		string fname = filename.substr(0, filename.find_last_of('/') + 1) + "body" + WebHelper::get_file_suf(get_header("Content-Type"));
+		return analysis_form_data();
+	}
+	else
+	{
+		//Check if there is body
+		i = msg.find("\r\n\r\n") + 4;
+		if (msg.size() - i != 0)
+		{
+			//Save body to file
+			string fname = filename.substr(0, filename.find_last_of('/') + 1) + "msg_body" + WebHelper::get_file_suf(get_header("Content-Type"));
+			ofstream of;
+			of.open(fname, ios::binary);
+			if (!of.is_open())
+			{
+#ifdef _DEBUG
+				cout << "Error: Failed to save msg body: Failed to open file." << endl;
+#endif
+				return false;
+			}
+			for (size_t j = i; j < msg.size(); j++)
+			{
+				of << msg[j];
+			}
+			of.close();
+		}
+	}
+	return true;
+}
+bool lazy::Msg::analysis_form_data()
+{
+	using namespace std;
+	//Get the boundary
+	string type = get_header("Content-Type");
+	string bdy = type.substr(type.find("boundary=") + 9);
+
+	//Split
+	string msg = get_str();
+	int i = msg.find("\r\n\r\n") + 4;
+
+	//Begin boundary: --[bdy]
+	//End boundary: --[bdy]--
+	int end_pos = msg.find("--" + bdy + "--", i);
+	int num = 0, next = msg.find("--" + bdy, i);
+
+	while (true)
+	{
+		//Goto next
+		i = next;
+		if (i == end_pos)break;
+
+		//Save part to file
+		next = msg.find("--" + bdy, i + bdy.size());
+		string fname = filename.substr(0, filename.find_last_of('/') + 1) + "form-data_" + to_string(num) + ".dat";
 		ofstream of;
 		of.open(fname, ios::binary);
 		if (!of.is_open())
 		{
 #ifdef _DEBUG
-			cout << "Error: Failed to save msg body: Failed to open file." << endl;
+			cout << "Error: Failed to save msg form-data: Failed to open file." << endl;
 #endif
 			return false;
 		}
-
-		//Split body
-		for (size_t j = i; j < size; j++)
+		//+4 for "--" before bdy and "\r\n" after
+		for (size_t j = i + bdy.size() + 4; j < next; j++)
 		{
-			of << msg_c[j];
+			of << msg[j];
 		}
-
 		of.close();
+
+		//Save part body to file
+		//Get file suf
+		string suf = "";
+		int iType = msg.find("Content-Type: ", i);
+		if (iType != string::npos)
+		{
+			suf = WebHelper::get_file_suf(msg.substr(msg.find(":", iType) + 2, msg.find("\r\n", iType) - msg.find(":", iType) - 2));
+		}
+		//Save
+		fname = filename.substr(0, filename.find_last_of('/') + 1) + "form-data_" + to_string(num) + suf;
+		of.open(fname, ios::binary);
+		if (!of.is_open())
+		{
+#ifdef _DEBUG
+			cout << "Error: Failed to save msg form-data: Failed to open file." << endl;
+#endif
+			return false;
+		}
+		for (size_t j = msg.find("\r\n\r\n", i) + 4; j < next; j++)
+		{
+			of << msg[j];
+		}
+		of.close();
+
+
+		num++;
 	}
-	delete msg_c;
+
+
 	return true;
 }
 
@@ -1161,21 +1236,39 @@ int lazy::Msg::get_state_code()
 	std::string code = fline.substr(9, fline.find_last_of(' ') - 9);
 	return stoi(code);
 }
-std::string lazy::Msg::get_header(std::string item)
+std::string lazy::Msg::get_header(std::string key)
 {
 	if (header.empty())return "";
 	for (size_t i = 0; i < header.size(); i++)
 	{
-		if (header[i].first == item)return header[i].second;
+		if (header[i].first == key)return header[i].second;
 	}
 	return "";
 }
-std::string lazy::Msg::get_par(std::string item)
+std::string lazy::Msg::get_par(std::string key)
 {
 	if (par.empty())return "";
 	for (size_t i = 0; i < par.size(); i++)
 	{
-		if (par[i].first == item)return par[i].second;
+		if (par[i].first == key)return par[i].second;
+	}
+}
+std::string lazy::Msg::get_req(std::string par)
+{
+	using namespace std;
+	if (fline.empty())return "";
+	if (fline.find(" ") == string::npos ||
+		fline.find(" HTTP") == string::npos)
+	{
+		return "";
+	}
+	if (fline.find("?") == string::npos)
+	{
+		return fline.substr(fline.find(" ") + 1, fline.find(" HTTP") - (fline.find(" ") + 1));
+	}
+	else
+	{
+		return fline.substr(fline.find(" ") + 1, fline.find("?") - (fline.find(" ") + 1));
 	}
 }
 
@@ -1271,76 +1364,82 @@ void lazy::MsgMaker::set_state_line(int state)
 	}
 }
 
-void lazy::MsgMaker::set_header(std::string item, std::string value)
+void lazy::MsgMaker::set_header(std::string key, std::string value)
 {
 	if (header.empty())
 	{
-		header.push_back({ item,value });
+		header.push_back({ key,value });
 	}
 	for (size_t i = 0; i < header.size(); i++)
 	{
-		if (header[i].first == item)
+		if (header[i].first == key)
 		{
 			header[i].second = value;
 			return;
 		}
 	}
-	header.push_back({ item,value });
+	header.push_back({ key,value });
 }
-std::string lazy::MsgMaker::set_header(std::string item)
+std::string lazy::MsgMaker::set_header(std::string key)
 {
 	std::string value = "";
-	if (item == "Connection")
+	if (key == "Connection")
 	{
 		if (httpv == (int)HttpVer::http_1_1)value = "keep-alive";
 		else if (httpv == (int)HttpVer::http_1_0)fline += "close";
 	}
-	else if (item == "Date")
+	else if (key == "Date")
 	{
 		value = WebHelper::get_date_str();
 	}
-	else if (item == "Content-Length")
+	else if (key == "Content-Length")
 	{
 		value = std::to_string(body.size());
 	}
-	else if (item == "User-Agent")
+	else if (key == "Content-Type")
+	{
+		value = WebHelper::get_file_type(file);
+	}
+	else if (key == "User-Agent")
 	{
 		value = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0";
 	}
-	else if (item == "Accept")
+	else if (key == "Accept")
 	{
 		value = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8";
 	}
-	else if (item == "Accept-Encoding")
+	else if (key == "Accept-Encoding")
 	{
 		value = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8";
 	}
 	else
 	{
 #ifdef _DEBUG
-		std::cout << "Warning: Failed to set header automatically: Unsupported item." << std::endl;
+		std::cout << "Warning: Failed to set header automatically: Unsupported key." << std::endl;
 #endif
 		return "";
 	}
-	set_header(item, value);
+	set_header(key, value);
 	return value;
 }
 
-void lazy::MsgMaker::set_par(std::string item, std::string value)
+void lazy::MsgMaker::set_par(std::string key, std::string value)
 {
 	if (par.empty())
 	{
-		par.push_back({ item,value });
+		par.push_back({ key,value });
 	}
 	for (size_t i = 0; i < par.size(); i++)
 	{
-		if (par[i].first == item)
+		if (par[i].first == key)
 		{
 			par[i].second = value;
 			return;
 		}
 	}
-	par.push_back({ item,value });
+	par.push_back({ key,value });
+	//Upgrade
+	set_request_line(r, m);
 }
 
 void lazy::MsgMaker::set_body(std::string str)
@@ -1361,6 +1460,7 @@ bool lazy::MsgMaker::load_body_from_file(std::string filename)
 		return false;
 	}
 
+	file = filename;
 	//Load
 	body.clear();
 	char* buf = new char[WEB_IO_BUFSIZE + 1];
@@ -1670,16 +1770,14 @@ bool lazy::WebHelper::send_get_msg(std::string url)
 #endif
 		return false;
 	}
-	
+
 	MsgMaker msg;
 	msg.set_request_line(WebHelper::get_url_res(url));
 	msg.set_header("Host", web->get_hostname());
 	msg.set_header("User-Agent");
 	msg.set_header("Connection");
 	msg.set_header("Date");
-	msg.set_header("Accept");
-	msg.set_header("Accept-Encoding");
-
+	std::cout << msg.make();
 	return web->write(msg);
 }
 

@@ -11,6 +11,8 @@ namespace lazy
 	private:
 		//Analysis the msg
 		bool analysis();
+		//Analysis the post body
+		bool analysis_form_data();
 
 		//Analysised data
 
@@ -43,9 +45,11 @@ namespace lazy
 		//Get the HTTP state (response msg only)
 		int get_state_code();
 		//Get the header items
-		std::string get_header(std::string item);
+		std::string get_header(std::string key);
 		//Get the parameters (request msg only)
 		std::string get_par(std::string par);
+		//Get resource requested (request msg only)
+		std::string get_req(std::string par);
 
 		//If body is html (response msg only)
 		bool is_html();
@@ -57,7 +61,7 @@ namespace lazy
 	{
 	private:
 		//temp
-		std::string r, m;
+		std::string file, r, m;
 		std::string body;
 
 	public:
@@ -80,13 +84,13 @@ namespace lazy
 		void set_state_line(int state_code);
 
 		//Set header
-		void set_header(std::string item, std::string value);
+		void set_header(std::string key, std::string value);
 		//Set header automaticlly
-		//Support item: Connection, Date, Content-Length, User-Agent, Accept, Accept-Encoding
-		std::string set_header(std::string item);
+		//Support key: Connection, Date, Content-Length, Content-Type, User-Agent, Accept, Accept-Encoding
+		std::string set_header(std::string key);
 
 		//Set parameter (request msg only)
-		void set_par(std::string item, std::string value);
+		void set_par(std::string key, std::string value);
 
 		//Set body (response msg only)
 		void set_body(std::string);
