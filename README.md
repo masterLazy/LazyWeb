@@ -81,3 +81,30 @@ See? LazyWeb is easy to use.
 ## Situation
 
 The development of LazyWeb is nearly half-done. It's still under development. 
+
+## Unresolved bugs
+
+If you try this:
+```cpp
+#include <lazyweb/lazyweb.hpp>
+using namespace lazy;
+using namespace std;
+int main()
+{
+	string url = "https://s2.best-wallpaper.net/wallpaper/3840x2160/1801/Fresh-blueberries-fruit-leaves_3840x2160.jpg";
+	Web web;
+	if (url.find("https") != std::string::npos)
+	{
+		web.init(WebProt::https, HttpVer::http_1_1, true);
+	}
+	else
+	{
+		web.init(WebProt::http, HttpVer::http_1_1, false);
+	}
+	web.connect(url);
+	WebHelper(web).send_get_msg(url);
+	while (web.msg_empty());
+	return 0;
+}
+```
+You will get a incomplete image. It only happens when the image is big. mLazy hasn't found out what produces this bug yet.
