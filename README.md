@@ -30,9 +30,8 @@ int main()
 {
 	string url="https://www.microsoft.com/en-us/"
 
-	//Initialize lazy::web
-	Web web;
 	//Initializate
+	Web web;
 	web.init(WebProt::https, HttpVer::http_1_1);
 	//Connect to the server
 	web.connect(url);
