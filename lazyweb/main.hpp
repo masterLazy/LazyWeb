@@ -832,6 +832,10 @@ bool lazy::Web::write(std::string msg)
 	}
 	return true;
 }
+bool lazy::Web::write(lazy::MsgMaker& msg)
+{
+	return write(msg.make());
+}
 
 bool lazy::Web::msg_empty()
 {
@@ -1036,26 +1040,30 @@ bool lazy::Msg::analysis()
 	size_t size;
 	get_str(&msg_c, &size);
 
-	//Save body to file
-	string fname = filename.substr(0, filename.find_last_of('/') + 1) + "body" + WebHelper::get_file_suf(get_header("Content-Type"));
-	ofstream of;
-	of.open(fname, ios::binary);
-	if (!of.is_open())
-	{
-#ifdef _DEBUG
-		cout << "Error: Failed to save msg body: Failed to open file." << endl;
-#endif
-		return false;
-	}
-
-	//Split body
+	//Check if there is body
 	i = msg.find("\r\n\r\n") + 4;
-	for (size_t j = i; j < size; j++)
+	if (size - i != 0)
 	{
-		of << msg_c[j];
-	}
+		//Save body to file
+		string fname = filename.substr(0, filename.find_last_of('/') + 1) + "body" + WebHelper::get_file_suf(get_header("Content-Type"));
+		ofstream of;
+		of.open(fname, ios::binary);
+		if (!of.is_open())
+		{
+#ifdef _DEBUG
+			cout << "Error: Failed to save msg body: Failed to open file." << endl;
+#endif
+			return false;
+		}
 
-	of.close();
+		//Split body
+		for (size_t j = i; j < size; j++)
+		{
+			of << msg_c[j];
+		}
+
+		of.close();
+	}
 	delete msg_c;
 	return true;
 }
@@ -1104,7 +1112,10 @@ std::string lazy::Msg::get_str()
 	while (!f.eof())
 	{
 		f.read(buf, WEB_IO_BUFSIZE);
-		res += buf;
+		for (size_t i = 0; i < f.gcount(); i++)
+		{
+			res += buf[i];
+		}
 	}
 	delete buf;
 	f.close();
@@ -1204,8 +1215,190 @@ std::string lazy::Msg::get_body()
 //lazy::MsgMaker
 
 
-lazy::MsgMaker::MsgMaker() {}
+lazy::MsgMaker::MsgMaker(int hv)
+{
+	httpv = hv;
+}
 lazy::MsgMaker::~MsgMaker() {}
+
+void lazy::MsgMaker::set_request_line(std::string res, std::string method)
+{
+	r = res;
+	m = method;
+
+	fline = method;
+	fline += " ";
+	fline += res;
+	if (!par.empty())
+	{
+		fline += "?";
+		for (int i = 0; i < par.size(); i++)
+		{
+			if (i > 0)fline += "&";
+			fline += par[i].first;
+			fline += "=";
+			fline += WebHelper::uri_encode(par[i].second);
+		}
+	}
+	if (httpv == (int)HttpVer::http_1_1)fline += " HTTP/1.1";
+	else if (httpv == (int)HttpVer::http_1_0)fline += " HTTP/1.0";
+}
+void lazy::MsgMaker::set_state_line(int state)
+{
+	fline.clear();
+	if (httpv == (int)HttpVer::http_1_1)fline += "HTTP/1.1 ";
+	else if (httpv == (int)HttpVer::http_1_0)fline += "HTTP/1.0 ";
+	switch (state)
+	{
+		//信息
+	case 100:fline += "100 Continue"; break;
+		//成功
+	case 200:fline += "200 OK"; break;
+		//重定向
+	case 301:fline += "301 Moved Permanently"; break;
+	case 302:fline += "302 Found"; break;
+	case 304:fline += "304 Not Modified"; break;
+	case 307:fline += "307 Temporary Redirect"; break;
+		//客户端错误
+	case 400:fline += "400 Bad Request"; break;
+	case 401:fline += "401 Unauthorized"; break;
+	case 403:fline += "403 Forbidden"; break;
+	case 404:fline += "404 Not Found"; break;
+		//服务器错误
+	case 500:fline += "500 Internal Server Error"; break;
+	case 503:fline += "503 Service Unavailable"; break;
+	default:fline += "500 Internal Server Error"; break;
+	}
+}
+
+void lazy::MsgMaker::set_header(std::string item, std::string value)
+{
+	if (header.empty())
+	{
+		header.push_back({ item,value });
+	}
+	for (size_t i = 0; i < header.size(); i++)
+	{
+		if (header[i].first == item)
+		{
+			header[i].second = value;
+			return;
+		}
+	}
+	header.push_back({ item,value });
+}
+std::string lazy::MsgMaker::set_header(std::string item)
+{
+	std::string value = "";
+	if (item == "Connection")
+	{
+		if (httpv == (int)HttpVer::http_1_1)value = "keep-alive";
+		else if (httpv == (int)HttpVer::http_1_0)fline += "close";
+	}
+	else if (item == "Date")
+	{
+		value = WebHelper::get_date_str();
+	}
+	else if (item == "Content-Length")
+	{
+		value = std::to_string(body.size());
+	}
+	else if (item == "User-Agent")
+	{
+		value = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0";
+	}
+	else if (item == "Accept")
+	{
+		value = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8";
+	}
+	else if (item == "Accept-Encoding")
+	{
+		value = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8";
+	}
+	else
+	{
+#ifdef _DEBUG
+		std::cout << "Warning: Failed to set header automatically: Unsupported item." << std::endl;
+#endif
+		return "";
+	}
+	set_header(item, value);
+	return value;
+}
+
+void lazy::MsgMaker::set_par(std::string item, std::string value)
+{
+	if (par.empty())
+	{
+		par.push_back({ item,value });
+	}
+	for (size_t i = 0; i < par.size(); i++)
+	{
+		if (par[i].first == item)
+		{
+			par[i].second = value;
+			return;
+		}
+	}
+	par.push_back({ item,value });
+}
+
+void lazy::MsgMaker::set_body(std::string str)
+{
+	body = str;
+}
+bool lazy::MsgMaker::load_body_from_file(std::string filename)
+{
+	using namespace std;
+
+	ifstream f;
+	f.open(filename, ios::binary);
+	if (!f.is_open())
+	{
+#ifdef _DEBUG
+		cout << "Error: Failed to load body: cannot open file." << endl;
+#endif
+		return false;
+	}
+
+	//Load
+	body.clear();
+	char* buf = new char[WEB_IO_BUFSIZE + 1];
+	memset(buf, 0, WEB_IO_BUFSIZE + 1);
+	while (!f.eof())
+	{
+		f.read(buf, WEB_IO_BUFSIZE);
+		for (size_t i = 0; i < f.gcount(); i++)
+		{
+			body += buf[i];
+		}
+	}
+	delete buf;
+
+	f.close();
+	return true;
+}
+
+std::string lazy::MsgMaker::make()
+{
+	std::string temp;
+	temp += fline;
+	temp += "\r\n";
+	for (size_t i = 0; i < header.size(); i++)
+	{
+		temp += header[i].first;
+		temp += ": ";
+		temp += header[i].second;
+		temp += "\r\n";
+	}
+	temp += "\r\n";
+	if (!body.empty())
+	{
+		temp += body;
+		temp += "\r\n\r\n";
+	}
+	return temp;
+}
 
 
 //lazy::WebHelper
@@ -1477,33 +1670,15 @@ bool lazy::WebHelper::send_get_msg(std::string url)
 #endif
 		return false;
 	}
-	std::string msg;
-	msg += "GET " + WebHelper::get_url_res(url);
-	if (web->get_http_ver() == HttpVer::http_1_0)
-	{
-		msg += " HTTP/1.0\r\n";
-	}
-	else if (web->get_http_ver() == HttpVer::http_1_1)
-	{
-		msg += " HTTP/1.1\r\n";
-	}
-
-	//Neccessary
-	if (web->get_http_ver() == HttpVer::http_1_0)
-	{
-		msg += "Connection: close\r\n";
-	}
-	else if (web->get_http_ver() == HttpVer::http_1_1)
-	{
-		msg += "Connection: keep-alive\r\n";
-	}
-	msg += "Host: " + web->get_hostname() + "\r\n";
-	msg += "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0\r\n";
-	//Unneccessary, maybe
-	msg += "Date: " + WebHelper::get_date_str() + "\r\n";
-	msg += "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\r\n";
-	msg += "Accept-Encoding: identity\r\n";
-	msg += "\r\n";
+	
+	MsgMaker msg;
+	msg.set_request_line(WebHelper::get_url_res(url));
+	msg.set_header("Host", web->get_hostname());
+	msg.set_header("User-Agent");
+	msg.set_header("Connection");
+	msg.set_header("Date");
+	msg.set_header("Accept");
+	msg.set_header("Accept-Encoding");
 
 	return web->write(msg);
 }

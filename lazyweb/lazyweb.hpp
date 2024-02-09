@@ -185,7 +185,7 @@ namespace lazy
 		//Send msg
 		bool write(std::string);
 		//Send msg
-		bool write(Msg*);
+		bool write(MsgMaker&);
 
 		//If the read queue is empty
 		bool msg_empty();

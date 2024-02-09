@@ -27,7 +27,7 @@ namespace lazy
 
 		Msg();
 		~Msg();
-		
+
 		//Load from file then analysis
 		bool load_from_file(std::string filename);
 		//Delete the msg file
@@ -36,7 +36,7 @@ namespace lazy
 		//Get string of the msg file
 		std::string get_str();
 		//NOTICE: Remember to delete str
-		bool get_str(char **str,size_t *size);
+		bool get_str(char** str, size_t* size);
 
 		//Get the first line
 		std::string get_fline();
@@ -55,8 +55,45 @@ namespace lazy
 
 	class MsgMaker
 	{
+	private:
+		//temp
+		std::string r, m;
+		std::string body;
+
 	public:
-		MsgMaker();
+		int httpv;
+
+		//First line
+		std::string fline;
+		//Header
+		std::vector<std::pair<std::string, std::string>> header;
+		//Parameters (after url)
+		std::vector<std::pair<std::string, std::string>> par;
+
+		//httpv: lazy::HttpVer
+		MsgMaker(int httpv = 1);
 		~MsgMaker();
+
+		//Set the request line
+		void set_request_line(std::string res, std::string method = "GET");
+		//Set the state line (response msg only)
+		void set_state_line(int state_code);
+
+		//Set header
+		void set_header(std::string item, std::string value);
+		//Set header automaticlly
+		//Support item: Connection, Date, Content-Length, User-Agent, Accept, Accept-Encoding
+		std::string set_header(std::string item);
+
+		//Set parameter (request msg only)
+		void set_par(std::string item, std::string value);
+
+		//Set body (response msg only)
+		void set_body(std::string);
+		//Load body from file (response msg only)
+		bool load_body_from_file(std::string filename);
+
+		//Make the message
+		std::string make();
 	};
 }
