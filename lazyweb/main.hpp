@@ -51,7 +51,8 @@ void lazy::Web::recv_loop(Web& web)
 			}
 
 			//Recv begin
-			if (buf[0] != '\0')
+			//Don't use buf[0]!='\0'. That will cause a bug. 
+			if (res > 0)
 			{
 				if (recving == false)
 				{
@@ -66,7 +67,6 @@ void lazy::Web::recv_loop(Web& web)
 					cout << "[recv_thread] Recv begin." << endl;
 #endif
 				}
-				string temp(buf);
 				for (int i = 0; i < res; i++)
 				{
 					of << buf[i];
@@ -1153,7 +1153,7 @@ bool lazy::Msg::load_from_file(std::string _filename)
 	if (!f.is_open())
 	{
 #ifdef _DEBUG
-		cout << "Error: Failed to load msg: cannot open file." << endl;
+		cout << "Error: Failed to load msg: Cannot open file." << endl;
 #endif
 		return false;
 	}
@@ -1456,7 +1456,7 @@ bool lazy::MsgMaker::load_body_from_file(std::string filename)
 	if (!f.is_open())
 	{
 #ifdef _DEBUG
-		cout << "Error: Failed to load body: cannot open file." << endl;
+		cout << "Error: Failed to load body: Cannot open file." << endl;
 #endif
 		return false;
 	}

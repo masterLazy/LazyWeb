@@ -47,7 +47,7 @@ namespace lazy
 	const int WEB_IO_BUFSIZE = 16 * 1024;
 
 	//Recv overtime time
-	const int WEB_RECV_OVERTIME = 1000;
+	const int WEB_RECV_OVERTIME = 2*1000;
 
 	//Auto operation overtime time
 	const int WEB_AUTO_OVERTIME = 1000 * 10;
