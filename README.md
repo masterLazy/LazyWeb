@@ -6,7 +6,7 @@ A new **HTTP** SDK strives to be perfect and easy to use. (I have developed mWeb
 
 LazyWeb is based on Windows API (WinSock) and OpenSSL.
 
-LazyWeb offers a class, `lazy::Web`, as the interface. LazyWeb creates a `recv_thread` to receive messages so that LazyWeb will be **non-blocking**. All the messages will be stored to a file at once.
+LazyWeb offers a class, `lazy::Web`, as the interface. LazyWeb creates a `recv_thread` to receive messages so that LazyWeb will be **non-blocking**. All the messages will be saved to a file at once.
 
 LazyWeb offers `lazy::Msg` to manage HTTP messages, `lazy::MsgMaker` to make HTTP messages, and `lazy::WebHelper`. 
 
