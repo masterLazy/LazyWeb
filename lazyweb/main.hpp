@@ -1129,7 +1129,8 @@ bool lazy::Msg::analyse_form_data()
 #endif
 			return false;
 		}
-		for (size_t j = msg.find("\r\n\r\n", i) + 4; j < next; j++)
+		//-2 for "\r\n" after data
+		for (size_t j = msg.find("\r\n\r\n", i) + 4; j < next - 2; j++)
 		{
 			of << msg[j];
 		}
