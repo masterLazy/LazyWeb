@@ -9,12 +9,12 @@ namespace lazy
 	class Msg
 	{
 	private:
-		//Analysis the msg
-		bool analysis();
-		//Analysis the post body
-		bool analysis_form_data();
+		//analyse the msg
+		bool analyse();
+		//analyse the post body
+		bool analyse_form_data();
 
-		//Analysised data
+		//Analysed data
 
 		//First line
 		std::string fline;
@@ -30,7 +30,7 @@ namespace lazy
 		Msg();
 		~Msg();
 
-		//Load from file then analysis
+		//Load from file then analyse
 		bool load_from_file(std::string filename);
 		//Delete the msg file
 		bool del_file();

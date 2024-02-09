@@ -977,18 +977,18 @@ void lazy::Web::close()
 lazy::Msg::Msg() {}
 lazy::Msg::~Msg() {}
 
-bool lazy::Msg::analysis()
+bool lazy::Msg::analyse()
 {
 	using namespace std;
 	string msg = get_str();
 
-	//Analysis msg header
+	//analyse msg header
 
 	//First line
 	if (msg.find("\r\n") == string::npos)
 	{
 #ifdef _DEBUG
-		cout << "Error: Failed to analysis msg: Invalid format." << endl;
+		cout << "Error: Failed to analyse msg: Invalid format." << endl;
 #endif
 		return false;
 	}
@@ -999,7 +999,7 @@ bool lazy::Msg::analysis()
 	header.clear();
 	while (true)
 	{
-		//Analysis one line
+		//analyse one line
 		string key = msg.substr(i, msg.find(": ", i) - i);
 		string value = msg.substr(msg.find(": ", i) + 2, msg.find("\r\n", i) - (msg.find(": ", i) + 2));
 		header.push_back({ key, value });
@@ -1039,10 +1039,10 @@ bool lazy::Msg::analysis()
 	}
 
 
-	//Analysis msg body
+	//analyse msg body
 	if (get_header("Content-Type").find("multipart/form-data") != string::npos)
 	{
-		return analysis_form_data();
+		return analyse_form_data();
 	}
 	else
 	{
@@ -1070,7 +1070,7 @@ bool lazy::Msg::analysis()
 	}
 	return true;
 }
-bool lazy::Msg::analysis_form_data()
+bool lazy::Msg::analyse_form_data()
 {
 	using namespace std;
 	//Get the boundary
@@ -1160,7 +1160,7 @@ bool lazy::Msg::load_from_file(std::string _filename)
 
 	filename = _filename;
 
-	return analysis();
+	return analyse();
 }
 bool lazy::Msg::del_file()
 {
