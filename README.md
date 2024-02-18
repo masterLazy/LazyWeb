@@ -1,6 +1,6 @@
 # LazyWeb
 
-A new **HTTP** SDK strives to be perfect and easy to use. (I have developed mWeb but I thought it was trash so I decide to create this. ) Both **HTTP Client** and **HTTP Server** are supported in LazyWeb.
+A new **HTTP** SDK strives to be perfect and easy to use. (I have developed mWeb but I thought it was trash so I decide to create this. ) Both **HTTP client** and **HTTP server** are supported in LazyWeb.
 
 ## Introduction
 
@@ -14,7 +14,7 @@ LazyWeb offers `lazy::Msg` to manage HTTP messages, `lazy::MsgMaker` to make HTT
 | ---------------------------------------------- | ----------------------------------------------- |
 | Platform            | Windows                                         |
 | Requirement | VisualC++; OpenSSL (Suggest using OpenSSL v3.2.1)          |
-| Supported network protocol    | HTTP; HTTP + SSL/TLS; HTTP + QUIC (client only) |
+| Supported network protocol    | HTTP; HTTP + SSL/TLS; HTTP + QUIC (Client only) |
 
 ## Quickstart
 
