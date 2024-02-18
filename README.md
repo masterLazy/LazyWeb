@@ -1,6 +1,6 @@
 # LazyWeb
 
-A new **HTTP** SDK strives to be perfect and easy to use. (I have developed mWeb but I thought it was trash so I decide to create this. ) Both **HTTP client** and **HTTP server** are supported in LazyWeb.
+A new **HTTP(S)** SDK strives to be perfect and easy to use. (I have developed mWeb but I thought it was trash so I decide to create this. ) Both **HTTP(S) client** and **HTTP server(S)** are supported in LazyWeb.
 
 ## Introduction
 
