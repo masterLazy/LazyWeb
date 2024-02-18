@@ -10,11 +10,11 @@ LazyWeb offers a class, `lazy::Web`, as the interface. LazyWeb creates a `recv_t
 
 LazyWeb offers `lazy::Msg` to manage HTTP messages, `lazy::MsgMaker` to make HTTP messages, and `lazy::WebHelper`. 
 
-| Questions                                      | Answers                                         |
+| Q                                      | A                                         |
 | ---------------------------------------------- | ----------------------------------------------- |
-| What platform does LazyWeb support?            | Windows                                         |
-| What should I install as extra to run LazyWeb? | OpenSSL (Suggest using OpenSSL v3.2.1)          |
-| What network protocol does LazyWeb support?    | HTTP; HTTP + SSL/TLS; HTTP + QUIC (client only) |
+| Platform            | Windows                                         |
+| Requirement | VisualC++; OpenSSL (Suggest using OpenSSL v3.2.1)          |
+| Supported network protocol    | HTTP; HTTP + SSL/TLS; HTTP + QUIC (client only) |
 
 ## Quickstart
 
