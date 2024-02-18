@@ -80,4 +80,4 @@ See? LazyWeb is easy to use.
 
 ## Situation
 
-The development of LazyWeb is nearly half-done. It's still under development. 
+The development of LazyWeb is nearly done. It's still under development. 
