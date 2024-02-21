@@ -12,8 +12,8 @@ LazyWeb offers `lazy::Msg` to manage HTTP messages, `lazy::MsgMaker` to make HTT
 
 | Ques.                                      | Ans.                                         |
 | ---------------------------------------------- | ----------------------------------------------- |
-| Platform            | Windows                                         |
-| Requirement | VisualC++; OpenSSL (Suggest using OpenSSL v3.2.1)          |
+| Supported platform            | Windows                                         |
+| Requirements | VisualC++; OpenSSL (Suggest using OpenSSL v3.2.1)          |
 | Supported network protocol    | HTTP; HTTP + SSL/TLS; HTTP + QUIC (Client only) |
 
 ## Quickstart
