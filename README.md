@@ -1,6 +1,6 @@
 # LazyWeb
 
-A new **HTTP(S)** SDK strives to be perfect and easy to use. (I have developed mWeb but I thought it was trash so I decide to create this. ) Both **HTTP(S) client** and **HTTP server(S)** are supported in LazyWeb.
+A lightweight **HTTP(S)** library strives to be perfect and easy to use. (I have developed mWeb but I thought it was trash so I decide to create this. ) Both **HTTP(S) client** and **HTTP server(S)** are supported in LazyWeb.
 
 ## Introduction
 
@@ -10,7 +10,7 @@ LazyWeb offers a class, `lazy::Web`, as the interface. LazyWeb creates a `recv_t
 
 LazyWeb offers `lazy::Msg` to manage HTTP messages, `lazy::MsgMaker` to make HTTP messages, and `lazy::WebHelper`. 
 
-| Q                                      | A                                         |
+| Ques.                                      | Ans.                                         |
 | ---------------------------------------------- | ----------------------------------------------- |
 | Platform            | Windows                                         |
 | Requirement | VisualC++; OpenSSL (Suggest using OpenSSL v3.2.1)          |
