@@ -1,103 +1,101 @@
 #pragma once
 /*****************************************************************************
-* http_msg.h
-* Http message support
-*****************************************************************************/
+ * http_msg.h
+ * Http message support
+ *****************************************************************************/
 
-namespace lazy
-{
-	class Msg
-	{
+namespace lazy {
+	class Msg {
 	private:
-		//analyse the msg
+		// analyse the msg
 		bool analyse();
-		//analyse the post body
+		// analyse the post body
 		bool analyse_form_data();
 
-		//Analysed data
+		// Analysed data
 
-		//First line
+		// First line
 		std::string fline;
-		//Header
+		// Header
 		std::vector<std::pair<std::string, std::string>> header;
-		//Parameters (after url)
+		// Parameters (after url)
 		std::vector<std::pair<std::string, std::string>> par;
 
 	public:
-		//Filename
+		// Filename
 		std::string filename = "";
 
 		Msg();
 		~Msg();
 
-		//Load from file then analyse
+		// Load from file then analyse
 		bool load_from_file(std::string filename);
-		//Delete the msg file
+		// Delete the msg file
 		bool del_file();
 
-		//Get string of the msg file
+		// Get string of the msg file
 		std::string get_str();
-		//NOTICE: Remember to delete str
+		// NOTICE: Remember to delete str
 		bool get_str(char** str, size_t* size);
 
-		//Get the first line
+		// Get the first line
 		std::string get_fline();
-		//Get the HTTP state (response msg only)
+		// Get the HTTP state (response msg only)
 		int get_state_code();
-		//Get the header items
+		// Get the header items
 		std::string get_header(std::string key);
-		//Get the parameters (request msg only)
+		// Get the parameters (request msg only)
 		std::string get_par(std::string par);
-		//Get resource requested (request msg only)
+		// Get resource requested (request msg only)
 		std::string get_req(std::string par);
 
-		//If body is html (response msg only)
+		// If body is html (response msg only)
 		bool is_html();
-		//Get the string of body
+		// Get the string of body
 		std::string get_body();
 	};
 
-	class MsgMaker
-	{
+	class MsgMaker {
 	private:
-		//temp
+		// temp
 		std::string file, r, m;
 		std::string body;
 
 	public:
 		int httpv;
 
-		//First line
+		// First line
 		std::string fline;
-		//Header
+		// Header
 		std::vector<std::pair<std::string, std::string>> header;
-		//Parameters (after url)
+		// Parameters (after url)
 		std::vector<std::pair<std::string, std::string>> par;
 
-		//httpv: lazy::HttpVer
+		// httpv: lazy::HttpVer
 		MsgMaker(int httpv = 1);
 		~MsgMaker();
 
-		//Set the request line
+		// Set the request line
 		void set_request_line(std::string res, std::string method = "GET");
-		//Set the state line (response msg only)
+		// Set the state line (response msg only)
 		void set_state_line(int state_code);
 
-		//Set header
+		// Set header
 		void set_header(std::string key, std::string value);
-		//Set header automaticlly
-		//Support key: Connection, Date, Content-Length, Content-Type, User-Agent, Accept, Accept-Encoding
+		// Set header automaticlly
+		// Support key: Connection, Date, Content-Length, Content-Type, User-Agent,
+		// Accept, Accept-Encoding
 		std::string set_header(std::string key);
 
-		//Set parameter (request msg only)
+		// Set parameter (request msg only)
 		void set_par(std::string key, std::string value);
 
-		//Set body (response msg only)
+		// Set body (response msg only)
 		void set_body(std::string);
-		//Load body from file (response msg only)
+		// Load body from file (response msg only)
 		bool load_body_from_file(std::string filename);
 
-		//Make the message
+		// Make the message
 		std::string make();
 	};
-}
+} // namespace lazy
