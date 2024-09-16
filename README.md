@@ -26,13 +26,12 @@ LazyWeb offers `lazy::Msg` to manage HTTP messages, `lazy::MsgMaker` to make HTT
 #include <lazyweb/lazyweb.hpp>
 using namespace std;
 using namespace lazy;
-int main()
-{
+int main() {
 	string url="https://www.microsoft.com/en-us/"
 
 	//Initializate
 	Web web;
-	web.init(WebProt::https, HttpVer::http_1_1);
+	web.init(WebPort::https, HttpVer::http_1_1);
 	//Connect to the server
 	web.connect(url);
 
@@ -58,8 +57,7 @@ int main()
 #include "lazyweb/lazyweb.hpp"
 using namespace std;
 using namespace lazy;
-int main()
-{
+int main() {
 	Msg msg = WebHelper::auto_get("https://www.microsoft.com/en-us/");
 	cout << msg.get_str() << endl;
 	return 0;
