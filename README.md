@@ -23,7 +23,7 @@ LazyWeb offers `lazy::Msg` to manage HTTP messages, `lazy::MsgMaker` to make HTT
 ```cpp
 #include <iostream>
 //Includes the lib
-#include <lazyweb/lazyweb.hpp>
+#include <LazyWeb/LazyWeb.hpp>
 using namespace std;
 using namespace lazy;
 int main() {
@@ -54,7 +54,7 @@ int main() {
 
 ```cpp
 #include <iostream>
-#include "lazyweb/lazyweb.hpp"
+#include "LazyWeb/LazyWeb.hpp"
 using namespace std;
 using namespace lazy;
 int main() {
